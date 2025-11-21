@@ -4,3 +4,4 @@ plotly==5.15.0
 scipy==1.10.0
 segyio==1.9.0
 pywt
+torch
