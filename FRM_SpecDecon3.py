@@ -126,7 +126,7 @@ class CastagnaFrequencyAnalysis:
         fig = make_subplots(
             rows=1, cols=3,
             subplot_titles=(
-                f'Input Seismic Trace {trace_index} - Click to select time',
+                f'Input Seismic Trace {trace_index}',
                 f'Continuous Frequency Volume Slice',
                 f'Frequency Spectrum at {selected_time:.1f} ms'
             ),
@@ -258,7 +258,7 @@ class CastagnaFrequencyAnalysis:
             row=1, col=3
         )
 
-        # Update layout with click event
+        # Update layout
         fig.update_layout(
             height=700,
             width=1400,
@@ -268,9 +268,7 @@ class CastagnaFrequencyAnalysis:
             showlegend=False,
             margin=dict(l=80, r=80, t=100, b=80),
             paper_bgcolor='white',
-            plot_bgcolor='white',
-            # Add click event for time selection
-            clickmode='event+select'
+            plot_bgcolor='white'
         )
 
         # Update axes
@@ -350,13 +348,15 @@ def main():
             border-radius: 0.5rem;
             margin: 1rem 0;
         }
-        .click-instruction {
-            background-color: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 0.5rem;
+        .time-input-box {
+            background-color: #e8f4fd;
             padding: 1rem;
+            border-radius: 0.5rem;
+            border: 2px solid #1f77b4;
             margin: 1rem 0;
-            text-align: center;
+        }
+        .stNumberInput > div > div > input {
+            font-size: 1.1rem;
             font-weight: bold;
         }
         </style>
@@ -399,10 +399,48 @@ def main():
         max_freq = st.sidebar.slider("Maximum Frequency (Hz)", 50, 100, 80)
         num_frequencies = st.sidebar.slider("Number of Frequencies", 10, 100, 50)
         
-        # Initialize session state for selected time
+        # Time selection section in sidebar
+        st.sidebar.subheader("Time Selection")
+        time_axis = np.arange(seismic_data.shape[0]) * analyzer.sample_rate
+        min_time = float(time_axis[0])
+        max_time = float(time_axis[-1])
+        default_time = float(time_axis[len(time_axis) // 2])
+        
+        # Initialize selected time in session state
         if 'selected_time' not in st.session_state:
-            time_axis = np.arange(seismic_data.shape[0]) * analyzer.sample_rate
-            st.session_state.selected_time = float(time_axis[len(time_axis) // 2])
+            st.session_state.selected_time = default_time
+        
+        # Time input with number input and slider for flexibility
+        col1, col2 = st.sidebar.columns([2, 1])
+        with col1:
+            selected_time = st.number_input(
+                "Analysis Time (ms)",
+                min_value=min_time,
+                max_value=max_time,
+                value=st.session_state.selected_time,
+                step=analyzer.sample_rate,
+                format="%.1f",
+                key="time_input"
+            )
+        with col2:
+            if st.button("Apply", use_container_width=True):
+                st.session_state.selected_time = selected_time
+                st.rerun()
+        
+        # Fine-tune slider
+        selected_time_slider = st.sidebar.slider(
+            "Fine-tune Time",
+            min_value=min_time,
+            max_value=max_time,
+            value=st.session_state.selected_time,
+            step=analyzer.sample_rate / 2.0,  # Half the sample rate for finer control
+            key="time_slider"
+        )
+        
+        # Update if slider is used
+        if selected_time_slider != st.session_state.selected_time:
+            st.session_state.selected_time = selected_time_slider
+            st.rerun()
         
         # Process button
         if st.sidebar.button("Run Spectral Analysis", type="primary"):
@@ -422,26 +460,29 @@ def main():
         
         # Display results if analysis is done
         if 'spectral_components' in st.session_state:
+            # Time input box in main area
+            st.markdown(f"""
+            <div class="time-input-box">
+                <h3>⏰ Time Selection Control</h3>
+                <p>Current analysis time: <b>{st.session_state.selected_time:.1f} ms</b></p>
+                <p>Time range: {min_time:.1f} ms to {max_time:.1f} ms | Sample rate: {analyzer.sample_rate} ms</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
             # Information box
             st.markdown("""
             <div class="info-box">
             <h3>🎯 Interactive Instructions</h3>
             <ul>
-            <li><b>Click on the seismic trace plot</b> to select analysis time</li>
-            <li><b>Left plot:</b> Input seismic trace - click anywhere to select time</li>
+            <li>Use the <b>time input box</b> in the sidebar to select analysis time</li>
+            <li>Use the <b>fine-tune slider</b> for precise time selection</li>
+            <li><b>Left plot:</b> Input seismic trace with amplitude vs time</li>
             <li><b>Middle plot:</b> Continuous frequency volume slice (heatmap)</li>
             <li><b>Right plot:</b> Frequency vs Amplitude spectrum at selected time</li>
             <li><b>Red dashed line:</b> Shows selected time across plots</li>
             <li><b>Red star:</b> Marks dominant frequency in spectrum</li>
             <li><b>Zoom:</b> Use zoom tool on left/middle plots (they sync automatically!)</li>
             </ul>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Click instruction
-            st.markdown("""
-            <div class="click-instruction">
-            🖱️ <b>CLICK ON THE SEISMIC TRACE PLOT (LEFT) TO SELECT ANALYSIS TIME</b>
             </div>
             """, unsafe_allow_html=True)
             
@@ -454,16 +495,7 @@ def main():
             )
             
             # Display the plot
-            plot_event = st.plotly_chart(fig, use_container_width=True, key=f"plot_{st.session_state.selected_time}")
-            
-            # Handle click events
-            if st.session_state.get('last_plot_click'):
-                click_data = st.session_state.last_plot_click
-                if click_data and 'points' in click_data:
-                    point = click_data['points'][0]
-                    if 'y' in point:
-                        st.session_state.selected_time = float(point['y'])
-                        st.rerun()
+            st.plotly_chart(fig, use_container_width=True)
             
             # Spectral characteristics
             characteristics = st.session_state.analyzer._get_spectral_characteristics(
@@ -568,7 +600,7 @@ def main():
                 <h3>🔬 Analysis Features</h3>
                 <ul style='text-align: left;'>
                     <li>Spectral decomposition using Ricker wavelets</li>
-                    <li>Interactive time selection by clicking on seismic trace</li>
+                    <li>Interactive time selection via text input</li>
                     <li>Synchronized zoom between seismic trace and frequency volume</li>
                     <li>Continuous frequency volume visualization</li>
                     <li>Frequency spectrum visualization with proper amplitude display</li>
@@ -587,67 +619,6 @@ def main():
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-# Custom JavaScript to capture plot clicks
-plotly_click_js = """
-<script>
-function waitForPlotly() {
-    if (typeof Plotly !== 'undefined') {
-        const plots = document.querySelectorAll('.js-plotly-plot');
-        plots.forEach((plot, index) => {
-            if (index === 0) { // First plot (seismic trace)
-                plot.on('plotly_click', function(data) {
-                    const points = data.points[0];
-                    // Send data to Streamlit
-                    const streamlitDoc = window.parent.document;
-                    if (streamlitDoc) {
-                        const inputs = streamlitDoc.querySelectorAll('input[data-testid="stPlotlyChart"]');
-                        if (inputs.length > 0) {
-                            const event = new CustomEvent('plotlyClick', {
-                                detail: {
-                                    points: [{
-                                        x: points.x,
-                                        y: points.y,
-                                        pointNumber: points.pointNumber,
-                                        curveNumber: points.curveNumber
-                                    }]
-                                }
-                            });
-                            inputs[0].dispatchEvent(event);
-                        }
-                    }
-                });
-            }
-        });
-    } else {
-        setTimeout(waitForPlotly, 100);
-    }
-}
-waitForPlotly();
-</script>
-"""
-
-# Add the JavaScript to the page
-st.components.v1.html(plotly_click_js, height=0)
-
-# Handle plot click events in Python
-if 'last_plot_click' not in st.session_state:
-    st.session_state.last_plot_click = None
-
-# Check for plot click events
-try:
-    from streamlit.runtime.scriptrunner import get_script_run_ctx
-    ctx = get_script_run_ctx()
-    if ctx and hasattr(ctx, 'current_session') and ctx.current_session:
-        session = ctx.current_session
-        if hasattr(session, '_session_state') and hasattr(session._session_state, '_state'):
-            state = session._session_state._state
-            for key in state:
-                if 'plotly_click' in key:
-                    st.session_state.last_plot_click = state[key]
-                    break
-except:
-    pass
 
 if __name__ == "__main__":
     main()
