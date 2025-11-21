@@ -451,6 +451,10 @@ def main():
         if 'selected_time' not in st.session_state:
             st.session_state.selected_time = default_time
         
+        # Store time axis in session state for calculations
+        if 'time_axis' not in st.session_state:
+            st.session_state.time_axis = time_axis
+        
         # Main time input with number input
         selected_time_input = st.sidebar.number_input(
             "Analysis Time (ms)",
@@ -467,7 +471,7 @@ def main():
             st.session_state.selected_time = selected_time_input
             st.rerun()
         
-        # Manual time input box (replacing the fine-tune slider)
+        # Manual time input box
         st.sidebar.markdown("""
         <div style='background-color: #e8f4fd; padding: 1rem; border-radius: 0.5rem; border: 1px solid #1f77b4; margin: 1rem 0;'>
             <h4>🕐 Manual Time Input</h4>
@@ -508,6 +512,13 @@ def main():
                 st.session_state.analyzer = analyzer
                 st.session_state.seismic_data = seismic_data
                 st.session_state.trace_index = trace_index
+                
+                # Create and store continuous frequency slice
+                continuous_slice, frequencies_continuous = analyzer.create_continuous_frequency_slice(
+                    seismic_data, spectral_components, trace_index
+                )
+                st.session_state.continuous_slice = continuous_slice
+                st.session_state.frequencies_continuous = frequencies_continuous
         
         # Display results if analysis is done
         if 'spectral_components' in st.session_state:
@@ -545,7 +556,7 @@ def main():
                     label_visibility="collapsed"
                 )
             with col2:
-                if st.button("Apply Manual Time", use_container_width=True):
+                if st.button("Apply Manual Time", use_container_width=True, key="main_apply"):
                     try:
                         manual_time_float = float(main_manual_time)
                         if min_time <= manual_time_float <= max_time:
@@ -574,6 +585,14 @@ def main():
             </div>
             """, unsafe_allow_html=True)
             
+            # Calculate the frequency spectrum at the selected time
+            selected_spectrum, selected_time_idx = st.session_state.analyzer.get_frequency_spectrum_at_time(
+                st.session_state.continuous_slice,
+                st.session_state.frequencies_continuous,
+                st.session_state.selected_time,
+                st.session_state.time_axis
+            )
+            
             # Create and display interactive plot with the selected time
             fig, spectrum, frequencies, current_time = st.session_state.analyzer.create_interactive_plot(
                 st.session_state.seismic_data,
@@ -585,22 +604,16 @@ def main():
             # Display the plot
             st.plotly_chart(fig, use_container_width=True)
             
-            # Verify the data flow - create continuous slice separately for verification
-            continuous_slice, _ = st.session_state.analyzer.create_continuous_frequency_slice(
-                st.session_state.seismic_data,
-                st.session_state.spectral_components,
-                st.session_state.trace_index
-            )
-            
+            # Verify the data flow
             st.markdown(f"""
             <div class="info-box">
             <h3>🔍 Data Verification</h3>
             <p>The frequency spectrum is directly extracted from the continuous frequency volume (heatmap):</p>
             <ul>
-            <li><b>Heatmap Shape:</b> {continuous_slice.shape[0]} time samples × {continuous_slice.shape[1]} frequency points</li>
+            <li><b>Heatmap Shape:</b> {st.session_state.continuous_slice.shape[0]} time samples × {st.session_state.continuous_slice.shape[1]} frequency points</li>
             <li><b>Extraction:</b> Taking row at time index corresponding to {st.session_state.selected_time:.1f} ms</li>
-            <li><b>Result:</b> 1D array of {len(spectrum)} amplitude values vs {len(frequencies)} frequencies</li>
-            <li><b>Time Index:</b> {np.argmin(np.abs(time_axis - st.session_state.selected_time))} (closest to {st.session_state.selected_time:.1f} ms)</li>
+            <li><b>Result:</b> 1D array of {len(selected_spectrum)} amplitude values vs {len(st.session_state.frequencies_continuous)} frequencies</li>
+            <li><b>Time Index:</b> {selected_time_idx} (closest to {st.session_state.selected_time:.1f} ms)</li>
             <li><b>Zoom Synchronization:</b> Left and middle plots are linked - zoom/pan actions affect both simultaneously</li>
             </ul>
             </div>
@@ -608,15 +621,15 @@ def main():
             
             # Spectral characteristics
             characteristics = st.session_state.analyzer._get_spectral_characteristics(
-                spectrum, frequencies, st.session_state.selected_time
+                selected_spectrum, st.session_state.frequencies_continuous, st.session_state.selected_time
             )
             
             # Display spectrum information
             st.markdown(f"""
             <div class="spectrum-info">
                 <h3>📊 Spectrum Analysis at {characteristics['selected_time']:.1f} ms</h3>
-                <p><b>Frequency Range:</b> {frequencies[0]:.1f} Hz to {frequencies[-1]:.1f} Hz | 
-                <b>Spectrum Amplitude Range:</b> {np.min(spectrum):.3f} to {np.max(spectrum):.3f}</p>
+                <p><b>Frequency Range:</b> {st.session_state.frequencies_continuous[0]:.1f} Hz to {st.session_state.frequencies_continuous[-1]:.1f} Hz | 
+                <b>Spectrum Amplitude Range:</b> {np.min(selected_spectrum):.3f} to {np.max(selected_spectrum):.3f}</p>
                 <p><b>Data Source:</b> Horizontal slice from continuous frequency volume at {characteristics['selected_time']:.1f} ms</p>
             </div>
             """, unsafe_allow_html=True)
@@ -674,15 +687,15 @@ def main():
                 
                 with col1:
                     st.write("**Spectrum Statistics:**")
-                    st.write(f"- Minimum amplitude: {np.min(spectrum):.4f}")
-                    st.write(f"- Maximum amplitude: {np.max(spectrum):.4f}")
-                    st.write(f"- Mean amplitude: {np.mean(spectrum):.4f}")
-                    st.write(f"- Standard deviation: {np.std(spectrum):.4f}")
-                    st.write(f"- Number of frequency points: {len(frequencies)}")
+                    st.write(f"- Minimum amplitude: {np.min(selected_spectrum):.4f}")
+                    st.write(f"- Maximum amplitude: {np.max(selected_spectrum):.4f}")
+                    st.write(f"- Mean amplitude: {np.mean(selected_spectrum):.4f}")
+                    st.write(f"- Standard deviation: {np.std(selected_spectrum):.4f}")
+                    st.write(f"- Number of frequency points: {len(st.session_state.frequencies_continuous)}")
                     
                 with col2:
                     st.write("**Frequency Content:**")
-                    total_energy = np.sum(spectrum)
+                    total_energy = np.sum(selected_spectrum)
                     low_percent = (characteristics['low_freq_content'] / total_energy * 100) if total_energy > 0 else 0
                     mid_percent = (characteristics['mid_freq_content'] / total_energy * 100) if total_energy > 0 else 0
                     high_percent = (characteristics['high_freq_content'] / total_energy * 100) if total_energy > 0 else 0
@@ -690,7 +703,7 @@ def main():
                     st.write(f"- Low frequency content: {low_percent:.1f}%")
                     st.write(f"- Mid frequency content: {mid_percent:.1f}%")
                     st.write(f"- High frequency content: {high_percent:.1f}%")
-                    st.write(f"- Dominant frequency position: {np.argmax(spectrum)}/{len(spectrum)}")
+                    st.write(f"- Dominant frequency position: {np.argmax(selected_spectrum)}/{len(selected_spectrum)}")
             
     else:
         # Welcome message when no file is uploaded
