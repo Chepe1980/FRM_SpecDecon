@@ -91,12 +91,12 @@ class CastagnaFrequencyAnalysis:
 
     def get_frequency_spectrum_at_time(self, continuous_slice, frequencies_continuous, time_ms, time_axis):
         """
-        Extract frequency spectrum at specific time
+        Extract frequency spectrum at specific time from continuous frequency slice
         """
         # Find closest time index
         time_idx = np.argmin(np.abs(time_axis - time_ms))
         
-        # Get frequency spectrum at this time
+        # Get frequency spectrum at this time - this is the horizontal slice from the heatmap
         frequency_spectrum = continuous_slice[time_idx, :]
         
         return frequency_spectrum, time_idx
@@ -105,7 +105,7 @@ class CastagnaFrequencyAnalysis:
         """
         Create interactive plot with synchronized zoom and time selection
         """
-        # Create continuous frequency slice
+        # Create continuous frequency slice FIRST
         continuous_slice, frequencies_continuous = self.create_continuous_frequency_slice(
             seismic_data, spectral_components, trace_index, num_interp_points=200
         )
@@ -117,7 +117,7 @@ class CastagnaFrequencyAnalysis:
         if selected_time is None:
             selected_time = time_axis[len(time_axis) // 2]
 
-        # Get spectrum at selected time
+        # Get spectrum at selected time FROM THE CONTINUOUS SLICE
         selected_spectrum, selected_time_idx = self.get_frequency_spectrum_at_time(
             continuous_slice, frequencies_continuous, selected_time, time_axis
         )
@@ -127,11 +127,10 @@ class CastagnaFrequencyAnalysis:
             rows=1, cols=3,
             subplot_titles=(
                 f'Input Seismic Trace {trace_index}',
-                f'Continuous Frequency Volume Slice',
-                f'Frequency Spectrum at {selected_time:.1f} ms'
+                f'Continuous Frequency Volume Slice (Time vs Frequency)',
+                f'Frequency Spectrum at {selected_time:.1f} ms (From Heatmap)'
             ),
             horizontal_spacing=0.08,
-            shared_yaxes=True,  # Synchronized zoom on y-axis for first two plots
             column_widths=[0.3, 0.4, 0.3],
             specs=[[{"secondary_y": False}, {"secondary_y": False}, {"secondary_y": False}]]
         )
@@ -192,7 +191,7 @@ class CastagnaFrequencyAnalysis:
             row=1, col=1
         )
 
-        # 2. Continuous Frequency Volume Slice
+        # 2. Continuous Frequency Volume Slice (Heatmap)
         fig.add_trace(
             go.Heatmap(
                 z=continuous_slice,
@@ -226,7 +225,7 @@ class CastagnaFrequencyAnalysis:
             row=1, col=2
         )
 
-        # 3. Frequency Spectrum at Selected Time
+        # 3. Frequency Spectrum at Selected Time (EXTRACTED FROM HEATMAP)
         fig.add_trace(
             go.Scatter(
                 x=frequencies_continuous,
@@ -258,6 +257,16 @@ class CastagnaFrequencyAnalysis:
             row=1, col=3
         )
 
+        # Highlight that this spectrum comes from the heatmap
+        fig.add_annotation(
+            x=0.5, y=1.08,
+            xref="paper", yref="paper",
+            text=f"← Spectrum extracted from heatmap at {selected_time:.1f} ms →",
+            showarrow=False,
+            font=dict(size=12, color="red"),
+            row=1, col=3
+        )
+
         # Update layout
         fig.update_layout(
             height=700,
@@ -281,7 +290,7 @@ class CastagnaFrequencyAnalysis:
         fig.update_yaxes(title_text="Amplitude", row=1, col=3, gridcolor='lightgray', 
                         range=[0, np.max(selected_spectrum) * 1.1])
 
-        return fig, selected_spectrum, frequencies_continuous, selected_time
+        return fig, selected_spectrum, frequencies_continuous, selected_time, continuous_slice
 
     def _get_spectral_characteristics(self, spectrum, frequencies, time):
         """Calculate spectral characteristics for display"""
@@ -354,6 +363,14 @@ def main():
             border-radius: 0.5rem;
             border: 2px solid #1f77b4;
             margin: 1rem 0;
+        }
+        .data-flow-box {
+            background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+            text-align: center;
         }
         .stNumberInput > div > div > input {
             font-size: 1.1rem;
@@ -459,6 +476,14 @@ def main():
         
         # Display results if analysis is done
         if 'spectral_components' in st.session_state:
+            # Data flow explanation
+            st.markdown(f"""
+            <div class="data-flow-box">
+                <h3>🔄 Data Flow: How the Frequency Spectrum is Calculated</h3>
+                <p><b>Seismic Trace</b> → <b>Spectral Decomposition</b> → <b>Continuous Frequency Volume</b> → <b>Horizontal Slice at {st.session_state.selected_time:.1f} ms</b> → <b>Frequency Spectrum</b></p>
+            </div>
+            """, unsafe_allow_html=True)
+            
             # Time input box in main area
             st.markdown(f"""
             <div class="time-input-box">
@@ -473,21 +498,21 @@ def main():
             <div class="info-box">
             <h3>🎯 Interactive Instructions</h3>
             <ul>
+            <li><b>Frequency Spectrum Source:</b> The right plot shows a horizontal slice from the middle heatmap at your selected time</li>
             <li>Use the <b>time input box</b> in the sidebar to select analysis time</li>
-            <li>Click <b>Apply Time</b> to update the spectrum</li>
+            <li>Click <b>Apply Time</b> to extract a new frequency spectrum from the heatmap</li>
             <li>Use the <b>fine-tune slider</b> for precise time selection</li>
             <li><b>Left plot:</b> Input seismic trace with amplitude vs time</li>
-            <li><b>Middle plot:</b> Continuous frequency volume slice (heatmap)</li>
-            <li><b>Right plot:</b> Frequency vs Amplitude spectrum at selected time</li>
+            <li><b>Middle plot:</b> Continuous frequency volume slice (Time vs Frequency heatmap)</li>
+            <li><b>Right plot:</b> Frequency vs Amplitude spectrum extracted from heatmap at selected time</li>
             <li><b>Red dashed line:</b> Shows selected time across plots</li>
             <li><b>Red star:</b> Marks dominant frequency in spectrum</li>
-            <li><b>Zoom:</b> Use zoom tool on left/middle plots (they sync automatically!)</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
             
             # Create and display interactive plot with the selected time
-            fig, spectrum, frequencies, current_time = st.session_state.analyzer.create_interactive_plot(
+            fig, spectrum, frequencies, current_time, continuous_slice = st.session_state.analyzer.create_interactive_plot(
                 st.session_state.seismic_data,
                 st.session_state.spectral_components,
                 st.session_state.trace_index,
@@ -496,6 +521,19 @@ def main():
             
             # Display the plot
             st.plotly_chart(fig, use_container_width=True)
+            
+            # Verify the data flow
+            st.markdown("""
+            <div class="info-box">
+            <h3>🔍 Data Verification</h3>
+            <p>The frequency spectrum is directly extracted from the continuous frequency volume (heatmap):</p>
+            <ul>
+            <li><b>Heatmap Shape:</b> Time samples × Frequency points</li>
+            <li><b>Extraction:</b> Taking row at time index corresponding to selected time</li>
+            <li><b>Result:</b> 1D array of amplitudes vs frequencies</li>
+            </ul>
+            </div>
+            """, unsafe_allow_html=True)
             
             # Spectral characteristics
             characteristics = st.session_state.analyzer._get_spectral_characteristics(
@@ -508,6 +546,7 @@ def main():
                 <h3>📊 Spectrum Analysis at {characteristics['selected_time']:.1f} ms</h3>
                 <p><b>Frequency Range:</b> {frequencies[0]:.1f} Hz to {frequencies[-1]:.1f} Hz | 
                 <b>Spectrum Amplitude Range:</b> {np.min(spectrum):.3f} to {np.max(spectrum):.3f}</p>
+                <p><b>Data Source:</b> Horizontal slice from continuous frequency volume at {characteristics['selected_time']:.1f} ms</p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -568,6 +607,7 @@ def main():
                     st.write(f"- Maximum amplitude: {np.max(spectrum):.4f}")
                     st.write(f"- Mean amplitude: {np.mean(spectrum):.4f}")
                     st.write(f"- Standard deviation: {np.std(spectrum):.4f}")
+                    st.write(f"- Number of frequency points: {len(frequencies)}")
                     
                 with col2:
                     st.write("**Frequency Content:**")
@@ -579,6 +619,7 @@ def main():
                     st.write(f"- Low frequency content: {low_percent:.1f}%")
                     st.write(f"- Mid frequency content: {mid_percent:.1f}%")
                     st.write(f"- High frequency content: {high_percent:.1f}%")
+                    st.write(f"- Dominant frequency position: {np.argmax(spectrum)}/{len(spectrum)}")
             
     else:
         # Welcome message when no file is uploaded
@@ -601,9 +642,8 @@ def main():
                 <ul style='text-align: left;'>
                     <li>Spectral decomposition using Ricker wavelets</li>
                     <li>Interactive time selection via text input</li>
-                    <li>Synchronized zoom between seismic trace and frequency volume</li>
                     <li>Continuous frequency volume visualization</li>
-                    <li>Frequency spectrum visualization with proper amplitude display</li>
+                    <li>Frequency spectrum extracted directly from frequency volume</li>
                     <li>Castagna frequency band analysis</li>
                     <li>Dominant frequency detection</li>
                     <li>Bandwidth calculation (FWHM)</li>
