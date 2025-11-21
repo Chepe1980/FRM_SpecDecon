@@ -226,7 +226,7 @@ class CastagnaFrequencyAnalysis:
             row=1, col=2
         )
 
-        # 3. Frequency Spectrum at Selected Time - FIXED THIS PLOT
+        # 3. Frequency Spectrum at Selected Time
         fig.add_trace(
             go.Scatter(
                 x=frequencies_continuous,
@@ -271,14 +271,15 @@ class CastagnaFrequencyAnalysis:
             plot_bgcolor='white'
         )
 
-        # Update axes - FIXED AXES FOR THIRD PLOT
+        # Update axes
         fig.update_xaxes(title_text="Amplitude", row=1, col=1, gridcolor='lightgray')
         fig.update_xaxes(title_text="Frequency (Hz)", row=1, col=2, gridcolor='lightgray')
         fig.update_xaxes(title_text="Frequency (Hz)", row=1, col=3, gridcolor='lightgray')
         
         fig.update_yaxes(title_text="Time (ms)", row=1, col=1, autorange="reversed", gridcolor='lightgray')
         fig.update_yaxes(title_text="Time (ms)", row=1, col=2, autorange="reversed", gridcolor='lightgray')
-        fig.update_yaxes(title_text="Amplitude", row=1, col=3, gridcolor='lightgray')
+        fig.update_yaxes(title_text="Amplitude", row=1, col=3, gridcolor='lightgray', 
+                        range=[0, np.max(selected_spectrum) * 1.1])
 
         return fig, selected_spectrum, frequencies_continuous, selected_time
 
@@ -392,6 +393,12 @@ def main():
             value=0
         )
         
+        # Analysis parameters
+        st.sidebar.subheader("Analysis Parameters")
+        min_freq = st.sidebar.slider("Minimum Frequency (Hz)", 5, 30, 10)
+        max_freq = st.sidebar.slider("Maximum Frequency (Hz)", 50, 100, 80)
+        num_frequencies = st.sidebar.slider("Number of Frequencies", 10, 100, 50)
+        
         # Time selection section in sidebar
         st.sidebar.subheader("Time Selection")
         time_axis = np.arange(seismic_data.shape[0]) * analyzer.sample_rate
@@ -402,12 +409,6 @@ def main():
         # Initialize selected time in session state
         if 'selected_time' not in st.session_state:
             st.session_state.selected_time = default_time
-        
-        # Analysis parameters
-        st.sidebar.subheader("Analysis Parameters")
-        min_freq = st.sidebar.slider("Minimum Frequency (Hz)", 5, 30, 10)
-        max_freq = st.sidebar.slider("Maximum Frequency (Hz)", 50, 100, 80)
-        num_frequencies = st.sidebar.slider("Number of Frequencies", 10, 100, 50)
         
         # Time input with number input
         selected_time_input = st.sidebar.number_input(
@@ -421,7 +422,7 @@ def main():
         )
         
         # Apply button for time input
-        if st.sidebar.button("Apply Time", use_container_width=True, type="primary"):
+        if st.sidebar.button("Apply Time", use_container_width=True):
             st.session_state.selected_time = selected_time_input
             st.rerun()
         
@@ -455,10 +456,9 @@ def main():
                 st.session_state.analyzer = analyzer
                 st.session_state.seismic_data = seismic_data
                 st.session_state.trace_index = trace_index
-                st.session_state.analysis_complete = True
         
         # Display results if analysis is done
-        if 'analysis_complete' in st.session_state and st.session_state.analysis_complete:
+        if 'spectral_components' in st.session_state:
             # Time input box in main area
             st.markdown(f"""
             <div class="time-input-box">
@@ -487,103 +487,98 @@ def main():
             """, unsafe_allow_html=True)
             
             # Create and display interactive plot with the selected time
-            try:
-                fig, spectrum, frequencies, current_time = st.session_state.analyzer.create_interactive_plot(
-                    st.session_state.seismic_data,
-                    st.session_state.spectral_components,
-                    st.session_state.trace_index,
-                    st.session_state.selected_time  # Use the selected time from session state
-                )
+            fig, spectrum, frequencies, current_time = st.session_state.analyzer.create_interactive_plot(
+                st.session_state.seismic_data,
+                st.session_state.spectral_components,
+                st.session_state.trace_index,
+                st.session_state.selected_time  # Use the selected time from session state
+            )
+            
+            # Display the plot
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Spectral characteristics
+            characteristics = st.session_state.analyzer._get_spectral_characteristics(
+                spectrum, frequencies, st.session_state.selected_time
+            )
+            
+            # Display spectrum information
+            st.markdown(f"""
+            <div class="spectrum-info">
+                <h3>📊 Spectrum Analysis at {characteristics['selected_time']:.1f} ms</h3>
+                <p><b>Frequency Range:</b> {frequencies[0]:.1f} Hz to {frequencies[-1]:.1f} Hz | 
+                <b>Spectrum Amplitude Range:</b> {np.min(spectrum):.3f} to {np.max(spectrum):.3f}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Display characteristics in columns
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Selected Time", f"{characteristics['selected_time']:.1f} ms")
+                st.metric("Dominant Frequency", f"{characteristics['dominant_frequency']:.1f} Hz")
+                st.metric("Peak Amplitude", f"{characteristics['peak_amplitude']:.3f}")
+            
+            with col2:
+                st.metric("Bandwidth (FWHM)", f"{characteristics['bandwidth']:.1f} Hz")
+                st.metric("Low Freq (10-20Hz)", f"{characteristics['low_freq_content']:.3f}")
+                st.metric("Mid Freq (20-40Hz)", f"{characteristics['mid_freq_content']:.3f}")
+            
+            with col3:
+                st.metric("High Freq (40-80Hz)", f"{characteristics['high_freq_content']:.3f}")
                 
-                # Display the plot
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Spectral characteristics
-                characteristics = st.session_state.analyzer._get_spectral_characteristics(
-                    spectrum, frequencies, st.session_state.selected_time
-                )
-                
-                # Display spectrum information
-                st.markdown(f"""
-                <div class="spectrum-info">
-                    <h3>📊 Spectrum Analysis at {characteristics['selected_time']:.1f} ms</h3>
-                    <p><b>Frequency Range:</b> {frequencies[0]:.1f} Hz to {frequencies[-1]:.1f} Hz | 
-                    <b>Spectrum Amplitude Range:</b> {np.min(spectrum):.3f} to {np.max(spectrum):.3f}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Display characteristics in columns
-                col1, col2, col3 = st.columns(3)
+                # Castagna interpretation
+                st.subheader("Castagna Interpretation")
+                if characteristics['dominant_frequency'] < 20:
+                    st.info("🔵 **Low Frequency**: Potential tuning effects, good for thick reservoir characterization")
+                elif characteristics['dominant_frequency'] < 40:
+                    st.info("🟢 **Mid Frequency**: Good resolution for medium-thick beds")
+                else:
+                    st.info("🟡 **High Frequency**: Excellent thin bed resolution")
+            
+            # Frequency band analysis
+            st.subheader("Frequency Band Analysis")
+            band_data = {
+                'Frequency Band': ['Low (10-20 Hz)', 'Mid (20-40 Hz)', 'High (40-80 Hz)'],
+                'Average Amplitude': [
+                    characteristics['low_freq_content'],
+                    characteristics['mid_freq_content'], 
+                    characteristics['high_freq_content']
+                ]
+            }
+            
+            band_fig = px.bar(
+                band_data, 
+                x='Frequency Band', 
+                y='Average Amplitude',
+                title='Average Amplitude by Frequency Band',
+                color='Frequency Band',
+                color_discrete_sequence=['#1f77b4', '#ff7f0e', '#2ca02c']
+            )
+            band_fig.update_layout(showlegend=False)
+            st.plotly_chart(band_fig, use_container_width=True)
+            
+            # Additional spectrum details
+            with st.expander("📈 Detailed Spectrum Information"):
+                col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.metric("Selected Time", f"{characteristics['selected_time']:.1f} ms")
-                    st.metric("Dominant Frequency", f"{characteristics['dominant_frequency']:.1f} Hz")
-                    st.metric("Peak Amplitude", f"{characteristics['peak_amplitude']:.3f}")
-                
+                    st.write("**Spectrum Statistics:**")
+                    st.write(f"- Minimum amplitude: {np.min(spectrum):.4f}")
+                    st.write(f"- Maximum amplitude: {np.max(spectrum):.4f}")
+                    st.write(f"- Mean amplitude: {np.mean(spectrum):.4f}")
+                    st.write(f"- Standard deviation: {np.std(spectrum):.4f}")
+                    
                 with col2:
-                    st.metric("Bandwidth (FWHM)", f"{characteristics['bandwidth']:.1f} Hz")
-                    st.metric("Low Freq (10-20Hz)", f"{characteristics['low_freq_content']:.3f}")
-                    st.metric("Mid Freq (20-40Hz)", f"{characteristics['mid_freq_content']:.3f}")
-                
-                with col3:
-                    st.metric("High Freq (40-80Hz)", f"{characteristics['high_freq_content']:.3f}")
+                    st.write("**Frequency Content:**")
+                    total_energy = np.sum(spectrum)
+                    low_percent = (characteristics['low_freq_content'] / total_energy * 100) if total_energy > 0 else 0
+                    mid_percent = (characteristics['mid_freq_content'] / total_energy * 100) if total_energy > 0 else 0
+                    high_percent = (characteristics['high_freq_content'] / total_energy * 100) if total_energy > 0 else 0
                     
-                    # Castagna interpretation
-                    st.subheader("Castagna Interpretation")
-                    if characteristics['dominant_frequency'] < 20:
-                        st.info("🔵 **Low Frequency**: Potential tuning effects, good for thick reservoir characterization")
-                    elif characteristics['dominant_frequency'] < 40:
-                        st.info("🟢 **Mid Frequency**: Good resolution for medium-thick beds")
-                    else:
-                        st.info("🟡 **High Frequency**: Excellent thin bed resolution")
-                
-                # Frequency band analysis
-                st.subheader("Frequency Band Analysis")
-                band_data = {
-                    'Frequency Band': ['Low (10-20 Hz)', 'Mid (20-40 Hz)', 'High (40-80 Hz)'],
-                    'Average Amplitude': [
-                        characteristics['low_freq_content'],
-                        characteristics['mid_freq_content'], 
-                        characteristics['high_freq_content']
-                    ]
-                }
-                
-                band_fig = px.bar(
-                    band_data, 
-                    x='Frequency Band', 
-                    y='Average Amplitude',
-                    title='Average Amplitude by Frequency Band',
-                    color='Frequency Band',
-                    color_discrete_sequence=['#1f77b4', '#ff7f0e', '#2ca02c']
-                )
-                band_fig.update_layout(showlegend=False)
-                st.plotly_chart(band_fig, use_container_width=True)
-                
-                # Additional spectrum details
-                with st.expander("📈 Detailed Spectrum Information"):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.write("**Spectrum Statistics:**")
-                        st.write(f"- Minimum amplitude: {np.min(spectrum):.4f}")
-                        st.write(f"- Maximum amplitude: {np.max(spectrum):.4f}")
-                        st.write(f"- Mean amplitude: {np.mean(spectrum):.4f}")
-                        st.write(f"- Standard deviation: {np.std(spectrum):.4f}")
-                        
-                    with col2:
-                        st.write("**Frequency Content:**")
-                        total_energy = np.sum(spectrum)
-                        low_percent = (characteristics['low_freq_content'] / total_energy * 100) if total_energy > 0 else 0
-                        mid_percent = (characteristics['mid_freq_content'] / total_energy * 100) if total_energy > 0 else 0
-                        high_percent = (characteristics['high_freq_content'] / total_energy * 100) if total_energy > 0 else 0
-                        
-                        st.write(f"- Low frequency content: {low_percent:.1f}%")
-                        st.write(f"- Mid frequency content: {mid_percent:.1f}%")
-                        st.write(f"- High frequency content: {high_percent:.1f}%")
-                        
-            except Exception as e:
-                st.error(f"Error creating plot: {e}")
-                st.info("Please try running the spectral analysis again.")
+                    st.write(f"- Low frequency content: {low_percent:.1f}%")
+                    st.write(f"- Mid frequency content: {mid_percent:.1f}%")
+                    st.write(f"- High frequency content: {high_percent:.1f}%")
             
     else:
         # Welcome message when no file is uploaded
