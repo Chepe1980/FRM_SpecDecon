@@ -1,0 +1,8 @@
+streamlit 
+segyio
+numpy 
+plotly
+scipy 
+PyWavelets
+pywt
+torch
