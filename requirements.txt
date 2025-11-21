@@ -1,7 +1,6 @@
-streamlit
-numpy
-plotly
-scipy
-segyio
-pywt
-torch
+segyio>=1.9.0
+numpy>=1.21.0
+plotly>=5.0.0
+scipy>=1.7.0
+pywavelets>=1.1.0
+torch>=1.9.0
