@@ -101,7 +101,8 @@ class CastagnaFrequencyAnalysis:
         
         return frequency_spectrum, time_idx
 
-    def create_interactive_plot(self, seismic_data, spectral_components, trace_index=0, selected_time=None):
+    def create_interactive_plot(self, seismic_data, spectral_components, trace_index=0, selected_time=None, 
+                              colormap='Viridis', yaxis_range=None):
         """
         Create interactive plot with synchronized zoom and time selection
         """
@@ -197,7 +198,7 @@ class CastagnaFrequencyAnalysis:
                 z=continuous_slice,
                 x=frequencies_continuous,
                 y=time_axis,
-                colorscale='Viridis',
+                colorscale=colormap,
                 colorbar=dict(
                     title="Amplitude",
                     title_side="right",
@@ -267,7 +268,7 @@ class CastagnaFrequencyAnalysis:
             row=1, col=3
         )
 
-        # Update layout for synchronized zoom
+        # Update layout
         fig.update_layout(
             height=700,
             width=1400,
@@ -280,32 +281,21 @@ class CastagnaFrequencyAnalysis:
             plot_bgcolor='white'
         )
 
-        # Update axes with synchronized y-axis for first two plots
+        # Update axes
         fig.update_xaxes(title_text="Amplitude", row=1, col=1, gridcolor='lightgray')
         fig.update_xaxes(title_text="Frequency (Hz)", row=1, col=2, gridcolor='lightgray')
         fig.update_xaxes(title_text="Frequency (Hz)", row=1, col=3, gridcolor='lightgray')
         
-        # Synchronize y-axes for first two plots (time axes)
-        fig.update_yaxes(
-            title_text="Time (ms)", 
-            row=1, col=1, 
-            autorange="reversed", 
-            gridcolor='lightgray',
-            matches='y2'  # Synchronize with second plot y-axis
-        )
-        fig.update_yaxes(
-            title_text="Time (ms)", 
-            row=1, col=2, 
-            autorange="reversed", 
-            gridcolor='lightgray',
-            matches='y'   # Synchronize with first plot y-axis
-        )
-        fig.update_yaxes(
-            title_text="Amplitude", 
-            row=1, col=3, 
-            gridcolor='lightgray', 
-            range=[0, np.max(selected_spectrum) * 1.1]
-        )
+        fig.update_yaxes(title_text="Time (ms)", row=1, col=1, autorange="reversed", gridcolor='lightgray')
+        fig.update_yaxes(title_text="Time (ms)", row=1, col=2, autorange="reversed", gridcolor='lightgray')
+        
+        # Set Y-axis range for frequency spectrum if provided
+        if yaxis_range is not None:
+            fig.update_yaxes(title_text="Amplitude", row=1, col=3, gridcolor='lightgray', 
+                            range=yaxis_range)
+        else:
+            fig.update_yaxes(title_text="Amplitude", row=1, col=3, gridcolor='lightgray', 
+                            range=[0, np.max(selected_spectrum) * 1.1])
 
         return fig, selected_spectrum, frequencies_continuous, selected_time
 
@@ -389,13 +379,6 @@ def main():
             margin: 1rem 0;
             text-align: center;
         }
-        .manual-time-box {
-            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-            padding: 1rem;
-            border-radius: 0.5rem;
-            border: 2px solid #1f77b4;
-            margin: 1rem 0;
-        }
         .stNumberInput > div > div > input {
             font-size: 1.1rem;
             font-weight: bold;
@@ -440,6 +423,21 @@ def main():
         max_freq = st.sidebar.slider("Maximum Frequency (Hz)", 50, 100, 80)
         num_frequencies = st.sidebar.slider("Number of Frequencies", 10, 100, 50)
         
+        # NEW: Colormap selection
+        st.sidebar.subheader("Visualization Settings")
+        colormap_options = ['Viridis', 'Plasma', 'Inferno', 'Magma', 'Cividis', 'Hot', 'Cool', 'Rainbow', 'Jet']
+        selected_colormap = st.sidebar.selectbox("Heatmap Colormap", colormap_options, index=0)
+        
+        # NEW: Y-axis range control for frequency spectrum
+        st.sidebar.subheader("Frequency Spectrum Y-axis")
+        auto_yaxis = st.sidebar.checkbox("Auto Y-axis range", value=True)
+        if not auto_yaxis:
+            y_min = st.sidebar.number_input("Y-axis Min", value=0.0, step=0.1, format="%.3f")
+            y_max = st.sidebar.number_input("Y-axis Max", value=1.0, step=0.1, format="%.3f")
+            yaxis_range = [y_min, y_max]
+        else:
+            yaxis_range = None
+        
         # Time selection section in sidebar
         st.sidebar.subheader("Time Selection")
         time_axis = np.arange(seismic_data.shape[0]) * analyzer.sample_rate
@@ -451,11 +449,7 @@ def main():
         if 'selected_time' not in st.session_state:
             st.session_state.selected_time = default_time
         
-        # Store time axis in session state for calculations
-        if 'time_axis' not in st.session_state:
-            st.session_state.time_axis = time_axis
-        
-        # Main time input with number input
+        # Time input with number input
         selected_time_input = st.sidebar.number_input(
             "Analysis Time (ms)",
             min_value=min_time,
@@ -471,31 +465,20 @@ def main():
             st.session_state.selected_time = selected_time_input
             st.rerun()
         
-        # Manual time input box
-        st.sidebar.markdown("""
-        <div style='background-color: #e8f4fd; padding: 1rem; border-radius: 0.5rem; border: 1px solid #1f77b4; margin: 1rem 0;'>
-            <h4>🕐 Manual Time Input</h4>
-            <p>Enter exact time value below:</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        manual_time = st.sidebar.text_input(
-            "Enter Time (ms)",
-            value=f"{st.session_state.selected_time:.1f}",
-            key="manual_time_input"
+        # MODIFIED: Fine-tune slider with 1ms step
+        selected_time_slider = st.sidebar.slider(
+            "Fine-tune Time",
+            min_value=min_time,
+            max_value=max_time,
+            value=st.session_state.selected_time,
+            step=1.0,  # Changed to 1ms step
+            key="time_slider"
         )
         
-        # Apply manual time button
-        if st.sidebar.button("Apply Manual Time", use_container_width=True):
-            try:
-                manual_time_float = float(manual_time)
-                if min_time <= manual_time_float <= max_time:
-                    st.session_state.selected_time = manual_time_float
-                    st.rerun()
-                else:
-                    st.sidebar.error(f"Time must be between {min_time:.1f} and {max_time:.1f} ms")
-            except ValueError:
-                st.sidebar.error("Please enter a valid number")
+        # Update if slider is used
+        if selected_time_slider != st.session_state.selected_time:
+            st.session_state.selected_time = selected_time_slider
+            st.rerun()
         
         # Process button
         if st.sidebar.button("Run Spectral Analysis", type="primary"):
@@ -512,13 +495,6 @@ def main():
                 st.session_state.analyzer = analyzer
                 st.session_state.seismic_data = seismic_data
                 st.session_state.trace_index = trace_index
-                
-                # Create and store continuous frequency slice
-                continuous_slice, frequencies_continuous = analyzer.create_continuous_frequency_slice(
-                    seismic_data, spectral_components, trace_index
-                )
-                st.session_state.continuous_slice = continuous_slice
-                st.session_state.frequencies_continuous = frequencies_continuous
         
         # Display results if analysis is done
         if 'spectral_components' in st.session_state:
@@ -536,36 +512,9 @@ def main():
                 <h3>⏰ Time Selection Control</h3>
                 <p>Current analysis time: <b>{st.session_state.selected_time:.1f} ms</b></p>
                 <p>Time range: {min_time:.1f} ms to {max_time:.1f} ms | Sample rate: {analyzer.sample_rate} ms</p>
+                <p><b>NEW:</b> Fine-tune slider now has 1ms precision for precise time selection</p>
             </div>
             """, unsafe_allow_html=True)
-            
-            # Manual time input in main area
-            st.markdown(f"""
-            <div class="manual-time-box">
-                <h3>⌨️ Manual Time Entry</h3>
-                <p>Enter exact time value (between {min_time:.1f} and {max_time:.1f} ms):</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                main_manual_time = st.text_input(
-                    "Enter Time Value (ms)",
-                    value=f"{st.session_state.selected_time:.1f}",
-                    key="main_manual_time",
-                    label_visibility="collapsed"
-                )
-            with col2:
-                if st.button("Apply Manual Time", use_container_width=True, key="main_apply"):
-                    try:
-                        manual_time_float = float(main_manual_time)
-                        if min_time <= manual_time_float <= max_time:
-                            st.session_state.selected_time = manual_time_float
-                            st.rerun()
-                        else:
-                            st.error(f"Time must be between {min_time:.1f} and {max_time:.1f} ms")
-                    except ValueError:
-                        st.error("Please enter a valid number")
             
             # Information box
             st.markdown("""
@@ -573,64 +522,68 @@ def main():
             <h3>🎯 Interactive Instructions</h3>
             <ul>
             <li><b>Frequency Spectrum Source:</b> The right plot shows a horizontal slice from the middle heatmap at your selected time</li>
-            <li>Use the <b>time input boxes</b> above or in the sidebar to select analysis time</li>
-            <li>Click <b>Apply Time</b> or <b>Apply Manual Time</b> to extract a new frequency spectrum from the heatmap</li>
+            <li>Use the <b>time input box</b> in the sidebar to select analysis time</li>
+            <li>Click <b>Apply Time</b> to extract a new frequency spectrum from the heatmap</li>
+            <li>Use the <b>fine-tune slider</b> for precise time selection (now with 1ms precision)</li>
+            <li><b>NEW:</b> Choose different colormaps for the heatmap visualization</li>
+            <li><b>NEW:</b> Manually control Y-axis range for frequency spectrum plot</li>
             <li><b>Left plot:</b> Input seismic trace with amplitude vs time</li>
             <li><b>Middle plot:</b> Continuous frequency volume slice (Time vs Frequency heatmap)</li>
             <li><b>Right plot:</b> Frequency vs Amplitude spectrum extracted from heatmap at selected time</li>
             <li><b>Red dashed line:</b> Shows selected time across plots</li>
             <li><b>Red star:</b> Marks dominant frequency in spectrum</li>
-            <li><b>Zoom Sync:</b> Left and middle plots are synchronized - zooming one will zoom the other automatically!</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
             
-            # Calculate the frequency spectrum at the selected time
-            selected_spectrum, selected_time_idx = st.session_state.analyzer.get_frequency_spectrum_at_time(
-                st.session_state.continuous_slice,
-                st.session_state.frequencies_continuous,
-                st.session_state.selected_time,
-                st.session_state.time_axis
-            )
-            
-            # Create and display interactive plot with the selected time
+            # Create and display interactive plot with the selected time and new parameters
             fig, spectrum, frequencies, current_time = st.session_state.analyzer.create_interactive_plot(
                 st.session_state.seismic_data,
                 st.session_state.spectral_components,
                 st.session_state.trace_index,
-                st.session_state.selected_time  # Use the selected time from session state
+                st.session_state.selected_time,  # Use the selected time from session state
+                colormap=selected_colormap,     # NEW: Pass selected colormap
+                yaxis_range=yaxis_range         # NEW: Pass Y-axis range
             )
             
             # Display the plot
             st.plotly_chart(fig, use_container_width=True)
             
-            # Verify the data flow
+            # Verify the data flow - create continuous slice separately for verification
+            continuous_slice, _ = st.session_state.analyzer.create_continuous_frequency_slice(
+                st.session_state.seismic_data,
+                st.session_state.spectral_components,
+                st.session_state.trace_index
+            )
+            
             st.markdown(f"""
             <div class="info-box">
             <h3>🔍 Data Verification</h3>
             <p>The frequency spectrum is directly extracted from the continuous frequency volume (heatmap):</p>
             <ul>
-            <li><b>Heatmap Shape:</b> {st.session_state.continuous_slice.shape[0]} time samples × {st.session_state.continuous_slice.shape[1]} frequency points</li>
+            <li><b>Heatmap Shape:</b> {continuous_slice.shape[0]} time samples × {continuous_slice.shape[1]} frequency points</li>
             <li><b>Extraction:</b> Taking row at time index corresponding to {st.session_state.selected_time:.1f} ms</li>
-            <li><b>Result:</b> 1D array of {len(selected_spectrum)} amplitude values vs {len(st.session_state.frequencies_continuous)} frequencies</li>
-            <li><b>Time Index:</b> {selected_time_idx} (closest to {st.session_state.selected_time:.1f} ms)</li>
-            <li><b>Zoom Synchronization:</b> Left and middle plots are linked - zoom/pan actions affect both simultaneously</li>
+            <li><b>Result:</b> 1D array of {len(spectrum)} amplitude values vs {len(frequencies)} frequencies</li>
+            <li><b>Time Index:</b> {np.argmin(np.abs(time_axis - st.session_state.selected_time))} (closest to {st.session_state.selected_time:.1f} ms)</li>
+            <li><b>Colormap:</b> {selected_colormap}</li>
+            <li><b>Y-axis Range:</b> {'Auto' if auto_yaxis else f'Manual [{yaxis_range[0]}, {yaxis_range[1]}]'}</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
             
             # Spectral characteristics
             characteristics = st.session_state.analyzer._get_spectral_characteristics(
-                selected_spectrum, st.session_state.frequencies_continuous, st.session_state.selected_time
+                spectrum, frequencies, st.session_state.selected_time
             )
             
             # Display spectrum information
             st.markdown(f"""
             <div class="spectrum-info">
                 <h3>📊 Spectrum Analysis at {characteristics['selected_time']:.1f} ms</h3>
-                <p><b>Frequency Range:</b> {st.session_state.frequencies_continuous[0]:.1f} Hz to {st.session_state.frequencies_continuous[-1]:.1f} Hz | 
-                <b>Spectrum Amplitude Range:</b> {np.min(selected_spectrum):.3f} to {np.max(selected_spectrum):.3f}</p>
+                <p><b>Frequency Range:</b> {frequencies[0]:.1f} Hz to {frequencies[-1]:.1f} Hz | 
+                <b>Spectrum Amplitude Range:</b> {np.min(spectrum):.3f} to {np.max(spectrum):.3f}</p>
                 <p><b>Data Source:</b> Horizontal slice from continuous frequency volume at {characteristics['selected_time']:.1f} ms</p>
+                <p><b>Visualization Settings:</b> Colormap: {selected_colormap} | Y-axis: {'Auto' if auto_yaxis else 'Manual'}</p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -687,15 +640,15 @@ def main():
                 
                 with col1:
                     st.write("**Spectrum Statistics:**")
-                    st.write(f"- Minimum amplitude: {np.min(selected_spectrum):.4f}")
-                    st.write(f"- Maximum amplitude: {np.max(selected_spectrum):.4f}")
-                    st.write(f"- Mean amplitude: {np.mean(selected_spectrum):.4f}")
-                    st.write(f"- Standard deviation: {np.std(selected_spectrum):.4f}")
-                    st.write(f"- Number of frequency points: {len(st.session_state.frequencies_continuous)}")
+                    st.write(f"- Minimum amplitude: {np.min(spectrum):.4f}")
+                    st.write(f"- Maximum amplitude: {np.max(spectrum):.4f}")
+                    st.write(f"- Mean amplitude: {np.mean(spectrum):.4f}")
+                    st.write(f"- Standard deviation: {np.std(spectrum):.4f}")
+                    st.write(f"- Number of frequency points: {len(frequencies)}")
                     
                 with col2:
                     st.write("**Frequency Content:**")
-                    total_energy = np.sum(selected_spectrum)
+                    total_energy = np.sum(spectrum)
                     low_percent = (characteristics['low_freq_content'] / total_energy * 100) if total_energy > 0 else 0
                     mid_percent = (characteristics['mid_freq_content'] / total_energy * 100) if total_energy > 0 else 0
                     high_percent = (characteristics['high_freq_content'] / total_energy * 100) if total_energy > 0 else 0
@@ -703,7 +656,7 @@ def main():
                     st.write(f"- Low frequency content: {low_percent:.1f}%")
                     st.write(f"- Mid frequency content: {mid_percent:.1f}%")
                     st.write(f"- High frequency content: {high_percent:.1f}%")
-                    st.write(f"- Dominant frequency position: {np.argmax(selected_spectrum)}/{len(selected_spectrum)}")
+                    st.write(f"- Dominant frequency position: {np.argmax(spectrum)}/{len(spectrum)}")
             
     else:
         # Welcome message when no file is uploaded
@@ -731,7 +684,9 @@ def main():
                     <li>Castagna frequency band analysis</li>
                     <li>Dominant frequency detection</li>
                     <li>Bandwidth calculation (FWHM)</li>
-                    <li>Synchronized zoom between seismic trace and frequency volume</li>
+                    <li><b>NEW:</b> 1ms precision in fine-tune time slider</li>
+                    <li><b>NEW:</b> Multiple colormap options for heatmap</li>
+                    <li><b>NEW:</b> Manual Y-axis range control for frequency spectrum</li>
                 </ul>
             </div>
             <div class="info-box" style='max-width: 600px; margin: 2rem auto;'>
