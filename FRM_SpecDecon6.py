@@ -132,7 +132,7 @@ class CastagnaFrequencyAnalysis:
         
         fig.update_layout(
             title=f'Common Frequency Section - {selected_frequency} Hz',
-            xaxis_title='Trace Number',
+            xaxis_title='Frequency of ISA',
             yaxis_title='Time (ms)',
             yaxis=dict(autorange='reversed'),
             height=500,
