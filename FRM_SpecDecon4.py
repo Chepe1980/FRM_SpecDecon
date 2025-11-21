@@ -449,7 +449,7 @@ def main():
             min_value=min_time,
             max_value=max_time,
             value=st.session_state.selected_time,
-            step=analyzer.sample_rate / 0.1,
+            step=analyzer.sample_rate / 10,
             key="time_slider"
         )
         
