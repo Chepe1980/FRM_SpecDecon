@@ -290,7 +290,7 @@ class CastagnaFrequencyAnalysis:
         fig.update_yaxes(title_text="Amplitude", row=1, col=3, gridcolor='lightgray', 
                         range=[0, np.max(selected_spectrum) * 1.1])
 
-        return fig, selected_spectrum, frequencies_continuous, selected_time, continuous_slice
+        return fig, selected_spectrum, frequencies_continuous, selected_time
 
     def _get_spectral_characteristics(self, spectrum, frequencies, time):
         """Calculate spectral characteristics for display"""
@@ -512,7 +512,7 @@ def main():
             """, unsafe_allow_html=True)
             
             # Create and display interactive plot with the selected time
-            fig, spectrum, frequencies, current_time, continuous_slice = st.session_state.analyzer.create_interactive_plot(
+            fig, spectrum, frequencies, current_time = st.session_state.analyzer.create_interactive_plot(
                 st.session_state.seismic_data,
                 st.session_state.spectral_components,
                 st.session_state.trace_index,
@@ -522,15 +522,22 @@ def main():
             # Display the plot
             st.plotly_chart(fig, use_container_width=True)
             
-            # Verify the data flow
-            st.markdown("""
+            # Verify the data flow - create continuous slice separately for verification
+            continuous_slice, _ = st.session_state.analyzer.create_continuous_frequency_slice(
+                st.session_state.seismic_data,
+                st.session_state.spectral_components,
+                st.session_state.trace_index
+            )
+            
+            st.markdown(f"""
             <div class="info-box">
             <h3>🔍 Data Verification</h3>
             <p>The frequency spectrum is directly extracted from the continuous frequency volume (heatmap):</p>
             <ul>
-            <li><b>Heatmap Shape:</b> Time samples × Frequency points</li>
-            <li><b>Extraction:</b> Taking row at time index corresponding to selected time</li>
-            <li><b>Result:</b> 1D array of amplitudes vs frequencies</li>
+            <li><b>Heatmap Shape:</b> {continuous_slice.shape[0]} time samples × {continuous_slice.shape[1]} frequency points</li>
+            <li><b>Extraction:</b> Taking row at time index corresponding to {st.session_state.selected_time:.1f} ms</li>
+            <li><b>Result:</b> 1D array of {len(spectrum)} amplitude values vs {len(frequencies)} frequencies</li>
+            <li><b>Time Index:</b> {np.argmin(np.abs(time_axis - st.session_state.selected_time))} (closest to {st.session_state.selected_time:.1f} ms)</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
