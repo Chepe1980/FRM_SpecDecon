@@ -101,6 +101,198 @@ class CastagnaFrequencyAnalysis:
         
         return frequency_spectrum, time_idx
 
+    def create_isa_frequency_plot(self, seismic_data, spectral_components, trace_index=0, selected_time=None, 
+                                colormap='Viridis', yaxis_range=None):
+        """
+        Create ISA frequency plot with the same template as continuous frequency plot
+        Shows frequency spectrum at selected time with synchronized zoom
+        """
+        # Create continuous frequency slice
+        continuous_slice, frequencies_continuous = self.create_continuous_frequency_slice(
+            seismic_data, spectral_components, trace_index, num_interp_points=200
+        )
+
+        time_axis = np.arange(seismic_data.shape[0]) * self.sample_rate
+        trace_amplitude = seismic_data[:, trace_index]
+
+        # Set default selected time if not provided
+        if selected_time is None:
+            selected_time = time_axis[len(time_axis) // 2]
+
+        # Get spectrum at selected time FROM THE CONTINUOUS SLICE
+        selected_spectrum, selected_time_idx = self.get_frequency_spectrum_at_time(
+            continuous_slice, frequencies_continuous, selected_time, time_axis
+        )
+
+        # Create subplots with synchronized y-axes
+        fig = make_subplots(
+            rows=1, cols=2,
+            subplot_titles=(
+                f'ISA Frequency Spectrum at {selected_time:.1f} ms',
+                f'Frequency Spectrum Details'
+            ),
+            horizontal_spacing=0.1,
+            column_widths=[0.6, 0.4],
+            specs=[[{"secondary_y": False}, {"secondary_y": False}]]
+        )
+
+        # 1. Continuous Frequency Volume Slice (Heatmap) - Left side
+        fig.add_trace(
+            go.Heatmap(
+                z=continuous_slice,
+                x=frequencies_continuous,
+                y=time_axis,
+                colorscale=colormap,
+                colorbar=dict(
+                    title="Amplitude",
+                    title_side="right",
+                    len=0.8,
+                    y=0.5,
+                    yanchor="middle"
+                ),
+                hovertemplate='<b>Frequency</b>: %{x:.1f} Hz<br><b>Time</b>: %{y:.1f} ms<br><b>Amplitude</b>: %{z:.3f}<extra></extra>',
+                name='Frequency Slice'
+            ),
+            row=1, col=1
+        )
+
+        # Add vertical line to frequency slice at selected time
+        fig.add_trace(
+            go.Scatter(
+                x=[frequencies_continuous[0], frequencies_continuous[-1]],
+                y=[selected_time, selected_time],
+                mode='lines',
+                line=dict(color='red', width=3, dash='dash'),
+                name='Selected Time',
+                showlegend=False,
+                hovertemplate='<b>Selected Time</b>: %{y:.1f} ms<extra></extra>'
+            ),
+            row=1, col=1
+        )
+
+        # 2. Frequency Spectrum at Selected Time (EXTRACTED FROM HEATMAP) - Right side
+        fig.add_trace(
+            go.Scatter(
+                x=frequencies_continuous,
+                y=selected_spectrum,
+                mode='lines',
+                line=dict(color='blue', width=3),
+                name='Frequency Spectrum',
+                hovertemplate='<b>Frequency</b>: %{x:.1f} Hz<br><b>Amplitude</b>: %{y:.3f}<extra></extra>'
+            ),
+            row=1, col=2
+        )
+
+        # Add dominant frequency marker
+        dominant_freq_idx = np.argmax(selected_spectrum)
+        dominant_freq = frequencies_continuous[dominant_freq_idx]
+        dominant_amp = selected_spectrum[dominant_freq_idx]
+        
+        fig.add_trace(
+            go.Scatter(
+                x=[dominant_freq],
+                y=[dominant_amp],
+                mode='markers+text',
+                marker=dict(size=12, color='red', symbol='star'),
+                text=[f' Dominant: {dominant_freq:.1f} Hz'],
+                textposition='top right',
+                name='Dominant Frequency',
+                hovertemplate='<b>Dominant Frequency</b>: %{x:.1f} Hz<br><b>Amplitude</b>: %{y:.3f}<extra></extra>'
+            ),
+            row=1, col=2
+        )
+
+        # Highlight Castagna frequency bands
+        low_band_mask = (frequencies_continuous >= 10) & (frequencies_continuous <= 20)
+        mid_band_mask = (frequencies_continuous >= 20) & (frequencies_continuous <= 40)
+        high_band_mask = (frequencies_continuous >= 40) & (frequencies_continuous <= 80)
+        
+        if np.any(low_band_mask):
+            fig.add_trace(
+                go.Scatter(
+                    x=frequencies_continuous[low_band_mask],
+                    y=selected_spectrum[low_band_mask],
+                    mode='lines',
+                    line=dict(color='green', width=4),
+                    name='Low Freq (10-20 Hz)',
+                    showlegend=False,
+                    hoverinfo='skip'
+                ),
+                row=1, col=2
+            )
+        
+        if np.any(mid_band_mask):
+            fig.add_trace(
+                go.Scatter(
+                    x=frequencies_continuous[mid_band_mask],
+                    y=selected_spectrum[mid_band_mask],
+                    mode='lines',
+                    line=dict(color='orange', width=4),
+                    name='Mid Freq (20-40 Hz)',
+                    showlegend=False,
+                    hoverinfo='skip'
+                ),
+                row=1, col=2
+            )
+        
+        if np.any(high_band_mask):
+            fig.add_trace(
+                go.Scatter(
+                    x=frequencies_continuous[high_band_mask],
+                    y=selected_spectrum[high_band_mask],
+                    mode='lines',
+                    line=dict(color='purple', width=4),
+                    name='High Freq (40-80 Hz)',
+                    showlegend=False,
+                    hoverinfo='skip'
+                ),
+                row=1, col=2
+            )
+
+        # Update layout
+        fig.update_layout(
+            height=600,
+            width=1200,
+            title_text=f"ISA Frequency Analysis - Trace {trace_index} at {selected_time:.1f} ms",
+            title_x=0.5,
+            title_font=dict(size=16),
+            showlegend=False,
+            margin=dict(l=80, r=80, t=100, b=80),
+            paper_bgcolor='white',
+            plot_bgcolor='white'
+        )
+
+        # Update axes - SYNCHRONIZE Y-AXES FOR BOTH PLOTS
+        fig.update_xaxes(title_text="Frequency (Hz)", row=1, col=1, gridcolor='lightgray')
+        fig.update_xaxes(title_text="Frequency (Hz)", row=1, col=2, gridcolor='lightgray')
+        
+        # Synchronize y-axes for both plots (time axes for left, amplitude for right)
+        fig.update_yaxes(
+            title_text="Time (ms)", 
+            row=1, col=1, 
+            autorange="reversed", 
+            gridcolor='lightgray',
+            matches='y'  # Synchronize with other plots if needed
+        )
+        
+        # Set Y-axis range for frequency spectrum if provided
+        if yaxis_range is not None:
+            fig.update_yaxes(
+                title_text="Amplitude", 
+                row=1, col=2, 
+                gridcolor='lightgray', 
+                range=yaxis_range
+            )
+        else:
+            fig.update_yaxes(
+                title_text="Amplitude", 
+                row=1, col=2, 
+                gridcolor='lightgray', 
+                range=[0, np.max(selected_spectrum) * 1.1]
+            )
+
+        return fig, selected_spectrum, frequencies_continuous, selected_time
+
     def create_common_frequency_section(self, spectral_components, selected_frequency, colormap='Viridis'):
         """
         Create a common frequency section as described in Castagna's paper
@@ -453,6 +645,14 @@ def main():
             border-radius: 0.5rem;
             margin: 1rem 0;
         }
+        .isa-plot-box {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+            text-align: center;
+        }
         </style>
     """, unsafe_allow_html=True)
     
@@ -611,6 +811,7 @@ def main():
             <li><b>NEW:</b> Choose different colormaps for the heatmap visualization</li>
             <li><b>NEW:</b> Manually control Y-axis range for frequency spectrum plot</li>
             <li><b>NEW:</b> Input trace and frequency volume plots are synchronized - zoom one and the other follows</li>
+            <li><b>NEW:</b> ISA Frequency Plot with synchronized zoom and Castagna frequency bands</li>
             <li><b>NEW:</b> Common Frequency Section display for low-frequency shadow detection</li>
             <li><b>Left plot:</b> Input seismic trace with amplitude vs time</li>
             <li><b>Middle plot:</b> Continuous frequency volume slice (Time vs Frequency heatmap)</li>
@@ -633,6 +834,26 @@ def main():
             
             # Display the plot
             st.plotly_chart(fig, use_container_width=True)
+            
+            # NEW: ISA Frequency Plot with same template
+            st.markdown("""
+            <div class="isa-plot-box">
+                <h3>🔬 ISA Frequency Analysis - Detailed View</h3>
+                <p>Same template as continuous frequency plot with synchronized visualization and Castagna frequency bands highlighted</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Create ISA frequency plot with same template
+            isa_fig, isa_spectrum, isa_frequencies, isa_time = st.session_state.analyzer.create_isa_frequency_plot(
+                st.session_state.seismic_data,
+                st.session_state.spectral_components,
+                st.session_state.trace_index,
+                st.session_state.selected_time,
+                colormap=selected_colormap,
+                yaxis_range=yaxis_range
+            )
+            
+            st.plotly_chart(isa_fig, use_container_width=True)
             
             # NEW: Common Frequency Section for Low-Frequency Shadow Detection
             st.markdown("""
@@ -693,6 +914,7 @@ def main():
             <li><b>Y-axis Range:</b> {'Auto' if auto_yaxis else f'Manual [{yaxis_range[0]}, {yaxis_range[1]}]'}</li>
             <li><b>Frequency Range:</b> {min_freq} Hz to {max_freq} Hz</li>
             <li><b>Common Frequency Section:</b> {common_freq} Hz</li>
+            <li><b>ISA Plot:</b> Same template with synchronized visualization</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
@@ -711,6 +933,7 @@ def main():
                 <p><b>Data Source:</b> Horizontal slice from continuous frequency volume at {characteristics['selected_time']:.1f} ms</p>
                 <p><b>Visualization Settings:</b> Colormap: {selected_colormap} | Y-axis: {'Auto' if auto_yaxis else 'Manual'} | Synchronized Zoom: Enabled</p>
                 <p><b>Common Frequency Analysis:</b> {common_freq} Hz section displayed for shadow detection</p>
+                <p><b>ISA Plot:</b> Detailed view with Castagna frequency bands highlighted</p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -816,6 +1039,7 @@ def main():
                     <li><b>NEW:</b> Manual Y-axis range control for frequency spectrum</li>
                     <li><b>NEW:</b> Synchronized zoom between input trace and frequency volume</li>
                     <li><b>NEW:</b> Minimum frequency selection starting from 1Hz</li>
+                    <li><b>NEW:</b> ISA Frequency Plot with same template and synchronized zoom</li>
                     <li><b>NEW:</b> Common Frequency Section for low-frequency shadow detection</li>
                 </ul>
             </div>
