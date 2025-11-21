@@ -123,7 +123,7 @@ class CastagnaFrequencyAnalysis:
             continuous_slice, frequencies_continuous, selected_time, time_axis
         )
 
-        # Create subplots: 1 row, 3 columns
+        # Create subplots with synchronized y-axes for first two plots
         fig = make_subplots(
             rows=1, cols=3,
             subplot_titles=(
@@ -281,21 +281,42 @@ class CastagnaFrequencyAnalysis:
             plot_bgcolor='white'
         )
 
-        # Update axes
+        # Update axes - SYNCHRONIZE Y-AXES FOR FIRST TWO PLOTS
         fig.update_xaxes(title_text="Amplitude", row=1, col=1, gridcolor='lightgray')
         fig.update_xaxes(title_text="Frequency (Hz)", row=1, col=2, gridcolor='lightgray')
         fig.update_xaxes(title_text="Frequency (Hz)", row=1, col=3, gridcolor='lightgray')
         
-        fig.update_yaxes(title_text="Time (ms)", row=1, col=1, autorange="reversed", gridcolor='lightgray')
-        fig.update_yaxes(title_text="Time (ms)", row=1, col=2, autorange="reversed", gridcolor='lightgray')
+        # Synchronize y-axes for first two plots (time axes)
+        fig.update_yaxes(
+            title_text="Time (ms)", 
+            row=1, col=1, 
+            autorange="reversed", 
+            gridcolor='lightgray',
+            matches='y2'  # Synchronize with second plot y-axis
+        )
+        fig.update_yaxes(
+            title_text="Time (ms)", 
+            row=1, col=2, 
+            autorange="reversed", 
+            gridcolor='lightgray',
+            matches='y'  # Synchronize with first plot y-axis
+        )
         
         # Set Y-axis range for frequency spectrum if provided
         if yaxis_range is not None:
-            fig.update_yaxes(title_text="Amplitude", row=1, col=3, gridcolor='lightgray', 
-                            range=yaxis_range)
+            fig.update_yaxes(
+                title_text="Amplitude", 
+                row=1, col=3, 
+                gridcolor='lightgray', 
+                range=yaxis_range
+            )
         else:
-            fig.update_yaxes(title_text="Amplitude", row=1, col=3, gridcolor='lightgray', 
-                            range=[0, np.max(selected_spectrum) * 1.1])
+            fig.update_yaxes(
+                title_text="Amplitude", 
+                row=1, col=3, 
+                gridcolor='lightgray', 
+                range=[0, np.max(selected_spectrum) * 1.1]
+            )
 
         return fig, selected_spectrum, frequencies_continuous, selected_time
 
@@ -419,7 +440,8 @@ def main():
         
         # Analysis parameters
         st.sidebar.subheader("Analysis Parameters")
-        min_freq = st.sidebar.slider("Minimum Frequency (Hz)", 5, 30, 10)
+        # CHANGED: Minimum frequency starts at 1Hz instead of 5Hz
+        min_freq = st.sidebar.slider("Minimum Frequency (Hz)", 1, 30, 10)  # Changed min from 5 to 1
         max_freq = st.sidebar.slider("Maximum Frequency (Hz)", 50, 100, 80)
         num_frequencies = st.sidebar.slider("Number of Frequencies", 10, 100, 50)
         
@@ -513,6 +535,7 @@ def main():
                 <p>Current analysis time: <b>{st.session_state.selected_time:.1f} ms</b></p>
                 <p>Time range: {min_time:.1f} ms to {max_time:.1f} ms | Sample rate: {analyzer.sample_rate} ms</p>
                 <p><b>NEW:</b> Fine-tune slider now has 1ms precision for precise time selection</p>
+                <p><b>NEW:</b> Input trace and frequency volume plots are synchronized for zooming</p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -527,6 +550,7 @@ def main():
             <li>Use the <b>fine-tune slider</b> for precise time selection (now with 1ms precision)</li>
             <li><b>NEW:</b> Choose different colormaps for the heatmap visualization</li>
             <li><b>NEW:</b> Manually control Y-axis range for frequency spectrum plot</li>
+            <li><b>NEW:</b> Input trace and frequency volume plots are synchronized - zoom one and the other follows</li>
             <li><b>Left plot:</b> Input seismic trace with amplitude vs time</li>
             <li><b>Middle plot:</b> Continuous frequency volume slice (Time vs Frequency heatmap)</li>
             <li><b>Right plot:</b> Frequency vs Amplitude spectrum extracted from heatmap at selected time</li>
@@ -567,6 +591,7 @@ def main():
             <li><b>Time Index:</b> {np.argmin(np.abs(time_axis - st.session_state.selected_time))} (closest to {st.session_state.selected_time:.1f} ms)</li>
             <li><b>Colormap:</b> {selected_colormap}</li>
             <li><b>Y-axis Range:</b> {'Auto' if auto_yaxis else f'Manual [{yaxis_range[0]}, {yaxis_range[1]}]'}</li>
+            <li><b>Frequency Range:</b> {min_freq} Hz to {max_freq} Hz</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
@@ -583,7 +608,7 @@ def main():
                 <p><b>Frequency Range:</b> {frequencies[0]:.1f} Hz to {frequencies[-1]:.1f} Hz | 
                 <b>Spectrum Amplitude Range:</b> {np.min(spectrum):.3f} to {np.max(spectrum):.3f}</p>
                 <p><b>Data Source:</b> Horizontal slice from continuous frequency volume at {characteristics['selected_time']:.1f} ms</p>
-                <p><b>Visualization Settings:</b> Colormap: {selected_colormap} | Y-axis: {'Auto' if auto_yaxis else 'Manual'}</p>
+                <p><b>Visualization Settings:</b> Colormap: {selected_colormap} | Y-axis: {'Auto' if auto_yaxis else 'Manual'} | Synchronized Zoom: Enabled</p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -687,6 +712,8 @@ def main():
                     <li><b>NEW:</b> 1ms precision in fine-tune time slider</li>
                     <li><b>NEW:</b> Multiple colormap options for heatmap</li>
                     <li><b>NEW:</b> Manual Y-axis range control for frequency spectrum</li>
+                    <li><b>NEW:</b> Synchronized zoom between input trace and frequency volume</li>
+                    <li><b>NEW:</b> Minimum frequency selection starting from 1Hz</li>
                 </ul>
             </div>
             <div class="info-box" style='max-width: 600px; margin: 2rem auto;'>
