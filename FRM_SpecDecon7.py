@@ -37,7 +37,19 @@ class CastagnaFrequencyAnalysis:
     def castagna_ricker_wavelet(self, frequency, length=0.128, dt=0.004):
         """
         Create Ricker wavelet following Castagna's spectral decomposition approach
-        Castagna et al. (2003) - Instantaneous spectral analysis
+        Based on Castagna et al. (2003) - Instantaneous spectral analysis
+        
+        RICKER WAVELET EQUATION:
+        ψ(t) = (1 - 2π²f²t²) * exp(-π²f²t²)
+        
+        Where:
+        - f = center frequency (Hz)
+        - t = time (seconds)
+        - ψ(t) = wavelet amplitude at time t
+        
+        Reference: Castagna, J.P., Sun, S., and Siegfried, R.W., 2003, 
+        Instantaneous spectral analysis: Detection of low-frequency shadows 
+        associated with hydrocarbons: The Leading Edge, 22, 120-127.
         """
         t = np.arange(-length/2, length/2, dt)
         # Ricker wavelet formula as used in Castagna's work
@@ -47,6 +59,22 @@ class CastagnaFrequencyAnalysis:
     def apply_spectral_decomposition(self, seismic_data, frequencies=np.arange(10, 81, 5)):
         """
         Spectral decomposition with discrete frequencies
+        Based on Castagna's Instantaneous Spectral Analysis (ISA) methodology
+        
+        MATHEMATICAL BASIS:
+        The seismic trace s(t) is decomposed into frequency components using 
+        convolution with Ricker wavelets:
+        
+        S(f, t) = s(t) ∗ ψ_f(t)
+        
+        Where:
+        - S(f, t) = spectral component at frequency f and time t
+        - s(t) = input seismic trace
+        - ψ_f(t) = Ricker wavelet at frequency f
+        - ∗ denotes convolution
+        
+        This produces a time-frequency representation that avoids windowing
+        artifacts of traditional Fourier methods.
         """
         spectral_components = {}
 
@@ -66,6 +94,11 @@ class CastagnaFrequencyAnalysis:
     def create_continuous_frequency_slice(self, seismic_data, spectral_components, trace_index=0, num_interp_points=200):
         """
         Create a continuous frequency slice using interpolation
+        
+        METHODOLOGY:
+        Cubic spline interpolation is used to create a continuous frequency
+        volume from discrete frequency components, enabling smooth frequency
+        visualization and analysis.
         """
         # Get original frequencies and data
         frequencies_original = sorted([float(k.replace('Hz', '')) for k in spectral_components.keys()])
@@ -92,6 +125,9 @@ class CastagnaFrequencyAnalysis:
     def get_frequency_spectrum_at_time(self, continuous_slice, frequencies_continuous, time_ms, time_axis):
         """
         Extract frequency spectrum at specific time from continuous frequency slice
+        
+        This represents a horizontal slice through the time-frequency volume
+        at a specific time, showing amplitude vs frequency.
         """
         # Find closest time index
         time_idx = np.argmin(np.abs(time_axis - time_ms))
@@ -105,6 +141,12 @@ class CastagnaFrequencyAnalysis:
                                     colormap='Viridis'):
         """
         Create ISA frequency spectrum plot (heatmap only for synchronization)
+        
+        THEORETICAL BACKGROUND:
+        This visualization shows the Instantaneous Spectral Analysis (ISA) 
+        results as a time-frequency heatmap. Each horizontal slice represents
+        the frequency spectrum at that particular time, while vertical slices
+        show amplitude variation with time at specific frequencies.
         """
         # Create continuous frequency slice
         continuous_slice, frequencies_continuous = self.create_continuous_frequency_slice(
@@ -167,6 +209,18 @@ class CastagnaFrequencyAnalysis:
     def create_frequency_spectrum_details(self, spectrum, frequencies, selected_time, yaxis_range=None):
         """
         Create detailed frequency spectrum plot from ISA data
+        
+        FREQUENCY BAND ANALYSIS:
+        Based on Castagna's methodology, seismic frequencies are categorized into:
+        - Low frequency (10-20 Hz): Tuning effects, thick reservoir characterization
+        - Mid frequency (20-40 Hz): Medium-thick bed resolution  
+        - High frequency (40-80 Hz): Thin bed resolution, stratigraphic details
+        
+        HYDROCARBON INDICATORS:
+        Low-frequency shadows beneath amplitude anomalies may indicate:
+        - Hydrocarbon-related attenuation
+        - Tuning effects
+        - Fluid-related dispersion
         """
         fig = go.Figure()
         
@@ -268,6 +322,16 @@ class CastagnaFrequencyAnalysis:
         """
         Create a common frequency section as described in Castagna's paper
         This shows the seismic section at a specific frequency to identify low-frequency shadows
+        
+        LOW-FREQUENCY SHADOW THEORY:
+        Low-frequency shadows beneath hydrocarbon reservoirs can be caused by:
+        1. Intrinsic attenuation in gas-filled reservoirs
+        2. Tuning effects from thin layers
+        3. Wave interference patterns
+        4. Fluid-related velocity dispersion
+        
+        Reference: Castagna et al. (2003) identified multiple mechanisms for
+        low-frequency shadows beyond simple attenuation.
         """
         # Get the spectral component for the selected frequency
         freq_key = f'{selected_frequency}Hz'
@@ -310,6 +374,11 @@ class CastagnaFrequencyAnalysis:
                               colormap='Viridis', yaxis_range=None):
         """
         Create interactive plot with synchronized zoom and time selection
+        
+        METHODOLOGY OVERVIEW:
+        This implements Castagna's Instantaneous Spectral Analysis (ISA) which
+        provides superior time-frequency resolution compared to traditional
+        Fourier-based methods by avoiding windowing artifacts.
         """
         # Create continuous frequency slice FIRST
         continuous_slice, frequencies_continuous = self.create_continuous_frequency_slice(
@@ -526,7 +595,16 @@ class CastagnaFrequencyAnalysis:
         return fig, selected_spectrum, frequencies_continuous, selected_time
 
     def _get_spectral_characteristics(self, spectrum, frequencies, time):
-        """Calculate spectral characteristics for display"""
+        """Calculate spectral characteristics for display
+        
+        SPECTRAL METRICS:
+        - Dominant frequency: Frequency with maximum amplitude
+        - Bandwidth (FWHM): Full width at half maximum
+        - Frequency band content: Average amplitude in Castagna's frequency bands
+        
+        These metrics help characterize reservoir properties and identify
+        hydrocarbon-related frequency anomalies.
+        """
         # Find dominant frequency
         dominant_freq_idx = np.argmax(spectrum)
         dominant_freq = frequencies[dominant_freq_idx]
@@ -558,6 +636,7 @@ class CastagnaFrequencyAnalysis:
             'mid_freq_content': mid_content,
             'high_freq_content': high_content
         }
+
 
 def main():
     st.set_page_config(
@@ -632,11 +711,109 @@ def main():
             margin: 1rem 0;
             text-align: center;
         }
+        .theory-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+        }
+        .equation-box {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 0.5rem 0;
+            font-family: monospace;
+        }
         </style>
     """, unsafe_allow_html=True)
     
     # Header
     st.markdown('<h1 class="main-header">🎯 Castagna Spectral Analysis</h1>', unsafe_allow_html=True)
+    
+    # Theory and Methodology Section
+    st.markdown("""
+    <div class="theory-box">
+        <h2>📚 Theoretical Background & Methodology</h2>
+        <h3>Instantaneous Spectral Analysis (ISA) - Castagna et al. (2003)</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        <div class="info-box">
+        <h4>🔬 Core Methodology</h4>
+        <p><b>Instantaneous Spectral Analysis (ISA)</b> provides continuous time-frequency analysis 
+        using wavelet transforms to avoid windowing problems of conventional Fourier analysis.</p>
+        
+        <div class="equation-box">
+        <b>Ricker Wavelet Equation:</b><br>
+        ψ(t) = (1 - 2π²f²t²) · exp(-π²f²t²)
+        </div>
+        
+        <div class="equation-box">
+        <b>Spectral Decomposition:</b><br>
+        S(f, t) = s(t) ∗ ψ_f(t)
+        </div>
+        
+        <p><b>Advantages over FFT:</b></p>
+        <ul>
+        <li>No windowing artifacts</li>
+        <li>Superior time-frequency resolution</li>
+        <li>Better vertical resolution</li>
+        <li>No spectral notching</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="info-box">
+        <h4>🎯 Hydrocarbon Detection</h4>
+        <p><b>Low-Frequency Shadows:</b> Anomalous low-frequency energy beneath potential reservoirs</p>
+        
+        <p><b>Detection Mechanisms:</b></p>
+        <ul>
+        <li>Anomalous attenuation in gas reservoirs</li>
+        <li>Tuning frequency effects</li>
+        <li>Frequency-dependent AVO</li>
+        <li>Wave interference patterns</li>
+        </ul>
+        
+        <p><b>Frequency Bands (Castagna):</b></p>
+        <ul>
+        <li><b>Low (10-20 Hz):</b> Thick reservoir characterization</li>
+        <li><b>Mid (20-40 Hz):</b> Medium bed resolution</li>
+        <li><b>High (40-80 Hz):</b> Thin bed detection</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # References
+    with st.expander("📖 References & Further Reading"):
+        st.markdown("""
+        **Primary Reference:**
+        - Castagna, J.P., Sun, S., and Siegfried, R.W., 2003, Instantaneous spectral analysis: 
+          Detection of low-frequency shadows associated with hydrocarbons: The Leading Edge, 22, 120-127.
+        
+        **Related Works:**
+        - Partyka, G., Gridley, J., and Lopez, J., 1999, Interpretational applications of spectral 
+          decomposition in reservoir characterization: The Leading Edge, 18, 353-360.
+        - Marfurt, K.J., and Kirlin, R.L., 2001, Narrow-band spectral analysis and thin-bed tuning: 
+          Geophysics, 66, 1274-1283.
+        - Chakraborty, A., and Okaya, D., 1995, Frequency-time decomposition of seismic data using 
+          wavelet-based methods: Geophysics, 60, 1906-1916.
+        - Ebrom, D., 1996, The low-frequency gas shadow on seismic sections: SEG/EAGE Summer Research 
+          Workshop on Wave Propagation in Rocks.
+        
+        **Key Equations:**
+        - Ricker Wavelet: ψ(t) = (1 - 2π²f²t²) · exp(-π²f²t²)
+        - Spectral Decomposition: S(f, t) = s(t) ∗ ψ_f(t)
+        - Bandwidth: FWHM = f_max - f_min where amplitude ≥ 0.5 × max_amplitude
+        """)
     
     # Sidebar
     st.sidebar.title("Configuration")
@@ -668,17 +845,15 @@ def main():
         
         # Analysis parameters
         st.sidebar.subheader("Analysis Parameters")
-        # CHANGED: Minimum frequency starts at 1Hz instead of 5Hz
-        min_freq = st.sidebar.slider("Minimum Frequency (Hz)", 1, 30, 10)  # Changed min from 5 to 1
+        min_freq = st.sidebar.slider("Minimum Frequency (Hz)", 1, 30, 10)
         max_freq = st.sidebar.slider("Maximum Frequency (Hz)", 50, 100, 80)
         num_frequencies = st.sidebar.slider("Number of Frequencies", 10, 100, 50)
         
-        # NEW: Colormap selection
+        # Visualization settings
         st.sidebar.subheader("Visualization Settings")
         colormap_options = ['Viridis', 'Plasma', 'Inferno', 'Magma', 'Cividis', 'Hot', 'Cool', 'Rainbow', 'Jet']
         selected_colormap = st.sidebar.selectbox("Heatmap Colormap", colormap_options, index=0)
         
-        # NEW: Y-axis range control for frequency spectrum
         st.sidebar.subheader("Frequency Spectrum Y-axis")
         auto_yaxis = st.sidebar.checkbox("Auto Y-axis range", value=True)
         if not auto_yaxis:
@@ -715,13 +890,13 @@ def main():
             st.session_state.selected_time = selected_time_input
             st.rerun()
         
-        # MODIFIED: Fine-tune slider with 1ms step
+        # Fine-tune slider with 1ms step
         selected_time_slider = st.sidebar.slider(
             "Fine-tune Time",
             min_value=min_time,
             max_value=max_time,
             value=st.session_state.selected_time,
-            step=1.0,  # Changed to 1ms step
+            step=1.0,
             key="time_slider"
         )
         
@@ -730,7 +905,7 @@ def main():
             st.session_state.selected_time = selected_time_slider
             st.rerun()
         
-        # NEW: Common Frequency Section Parameters
+        # Common Frequency Section Parameters
         st.sidebar.subheader("Common Frequency Section")
         common_freq = st.sidebar.slider(
             "Select Frequency for Common Section (Hz)",
