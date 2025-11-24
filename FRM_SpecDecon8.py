@@ -87,8 +87,10 @@ class CastagnaFrequencyAnalysis:
         # Angular frequency
         omega = 2.0 * np.pi * frequency
         
-        # Morlet wavelet (complex)
-        wavelet_complex = normalization * np.exp(1j * omega0 * t) * np.exp(-t**2 / 2)
+        # Morlet wavelet (complex) - corrected implementation
+        # Scale the time axis by frequency for proper wavelet scaling
+        scaled_t = omega * t
+        wavelet_complex = normalization * np.exp(1j * omega0 * scaled_t) * np.exp(-scaled_t**2 / 2)
         
         # For seismic applications, we often use the real part
         wavelet_real = np.real(wavelet_complex)
@@ -130,7 +132,8 @@ class CastagnaFrequencyAnalysis:
             for trace in seismic_data.T:
                 # Convolve with wavelet for spectral component
                 conv_result = np.convolve(trace, wavelet, mode='same')
-                filtered_traces.append(conv_result)
+                # Take absolute value for amplitude spectrum
+                filtered_traces.append(np.abs(conv_result))
 
             spectral_components[f'{freq}Hz'] = np.array(filtered_traces).T
 
@@ -172,7 +175,7 @@ class CastagnaFrequencyAnalysis:
         # Extract data for the specific trace
         frequency_slice_original = np.zeros((seismic_data.shape[0], len(frequencies_original)))
         for i, freq in enumerate(frequencies_original):
-            frequency_slice_original[:, i] = np.abs(spectral_components[f'{freq}Hz'][:, trace_index])
+            frequency_slice_original[:, i] = spectral_components[f'{freq}Hz'][:, trace_index]
 
         # Create finer frequency grid for interpolation
         frequencies_continuous = np.linspace(min(frequencies_original), max(frequencies_original), num_interp_points)
@@ -410,7 +413,7 @@ class CastagnaFrequencyAnalysis:
             freq_key = f'{closest_freq}Hz'
             selected_frequency = closest_freq
         
-        frequency_section = np.abs(spectral_components[freq_key])
+        frequency_section = spectral_components[freq_key]
         
         # Create the plot
         fig = go.Figure()
