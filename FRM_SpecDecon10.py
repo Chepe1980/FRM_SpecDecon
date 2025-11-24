@@ -1167,6 +1167,9 @@ def main():
         if 'selected_time' not in st.session_state:
             st.session_state.selected_time = default_time
         
+        # Display actual time range in milliseconds
+        st.sidebar.info(f"Time range: {min_time:.1f} ms to {max_time:.1f} ms")
+        
         # Time input with number input - IN MILLISECONDS
         selected_time_input = st.sidebar.number_input(
             "Analysis Time (ms)",
