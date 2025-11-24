@@ -803,6 +803,22 @@ def main():
             border-radius: 0.5rem;
             margin: 1rem 0;
         }
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            white-space: pre-wrap;
+            background-color: #f0f2f6;
+            border-radius: 4px 4px 0px 0px;
+            gap: 1px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #1f77b4;
+            color: white;
+        }
         </style>
     """, unsafe_allow_html=True)
     
@@ -880,7 +896,7 @@ def main():
         <h3>🔄 Wavelet Comparison: Ricker vs Morlet</h3>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
             <div>
-                <h4>Ricker Wavelet</h4>
+                <h4>Ricker Wavelet (Tab 1)</h4>
                 <ul>
                 <li><b>Type:</b> Real-valued, symmetric</li>
                 <li><b>Advantages:</b> Simple, zero-phase, good for seismic</li>
@@ -889,7 +905,7 @@ def main():
                 </ul>
             </div>
             <div>
-                <h4>Morlet Wavelet</h4>
+                <h4>Morlet Wavelet (Tab 2)</h4>
                 <ul>
                 <li><b>Type:</b> Complex-valued, modulated Gaussian</li>
                 <li><b>Advantages:</b> Better time-frequency localization, enables phase analysis</li>
@@ -957,15 +973,6 @@ def main():
             min_value=0, 
             max_value=seismic_data.shape[1]-1, 
             value=0
-        )
-        
-        # Wavelet type selection
-        st.sidebar.subheader("Wavelet Selection")
-        wavelet_type = st.sidebar.radio(
-            "Select Wavelet Type",
-            ["ricker", "morlet"],
-            index=0,
-            help="Ricker: Standard seismic wavelet. Morlet: Better time-frequency localization"
         )
         
         # Analysis parameters
@@ -1041,280 +1048,265 @@ def main():
             help="Display seismic section at this specific frequency to identify low-frequency shadows"
         )
         
-        # Process button
-        if st.sidebar.button("Run Spectral Analysis", type="primary"):
-            with st.spinner("Performing spectral decomposition..."):
-                # Apply spectral decomposition based on selected wavelet type
-                frequencies_continuous = np.linspace(min_freq, max_freq, num_frequencies)
-                
-                if wavelet_type == 'ricker':
+        # Create tabs
+        tab1, tab2 = st.tabs(["🎯 Ricker Wavelet (Original)", "🌀 Morlet Wavelet"])
+        
+        # Tab 1: Ricker Wavelet (Original - Unchanged)
+        with tab1:
+            # Process button for Ricker
+            if st.sidebar.button("Run Ricker Analysis", type="primary", key="ricker_btn"):
+                with st.spinner("Performing Ricker spectral decomposition..."):
+                    # Apply spectral decomposition with Ricker wavelet
+                    frequencies_continuous = np.linspace(min_freq, max_freq, num_frequencies)
                     spectral_components = analyzer.apply_spectral_decomposition(
                         seismic_data, frequencies_continuous, wavelet_type='ricker'
                     )
-                else:
-                    spectral_components = analyzer.apply_morlet_spectral_decomposition(
-                        seismic_data, frequencies_continuous
-                    )
-                
-                # Store in session state
-                st.session_state.spectral_components = spectral_components
-                st.session_state.frequencies_continuous = frequencies_continuous
-                st.session_state.analyzer = analyzer
-                st.session_state.seismic_data = seismic_data
-                st.session_state.trace_index = trace_index
-                st.session_state.wavelet_type = wavelet_type
+                    
+                    # Store in session state
+                    st.session_state.ricker_spectral_components = spectral_components
+                    st.session_state.ricker_frequencies_continuous = frequencies_continuous
+                    st.session_state.ricker_analyzer = analyzer
+                    st.session_state.ricker_seismic_data = seismic_data
+                    st.session_state.ricker_trace_index = trace_index
         
-        # Display results if analysis is done
-        if 'spectral_components' in st.session_state:
-            wavelet_name = "Ricker" if st.session_state.wavelet_type == 'ricker' else "Morlet"
-            
-            # Data flow explanation
-            st.markdown(f"""
-            <div class="data-flow-box">
-                <h3>🔄 Data Flow: How the Frequency Spectrum is Calculated ({wavelet_name} Wavelet)</h3>
-                <p><b>Seismic Trace</b> → <b>Spectral Decomposition</b> → <b>Continuous Frequency Volume</b> → <b>Horizontal Slice at {st.session_state.selected_time:.1f} ms</b> → <b>Frequency Spectrum</b></p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Time input box in main area
-            st.markdown(f"""
-            <div class="time-input-box">
-                <h3>⏰ Time Selection Control</h3>
-                <p>Current analysis time: <b>{st.session_state.selected_time:.1f} ms</b></p>
-                <p>Wavelet type: <b>{wavelet_name}</b></p>
-                <p>Time range: {min_time:.1f} ms to {max_time:.1f} ms | Sample rate: {analyzer.sample_rate} ms</p>
-                <p><b>NEW:</b> Morlet wavelet option available for better time-frequency localization</p>
-                <p><b>NEW:</b> Fine-tune slider now has 1ms precision for precise time selection</p>
-                <p><b>NEW:</b> Input trace, continuous frequency volume, and ISA frequency spectrum plots are synchronized for zooming</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Information box
-            st.markdown(f"""
-            <div class="info-box">
-            <h3>🎯 Interactive Instructions ({wavelet_name} Wavelet)</h3>
-            <ul>
-            <li><b>Plot Order:</b> 1. Input Trace → 2. Continuous Frequency Volume → 3. Frequency Spectrum → 4. ISA Frequency Spectrum → 5. Frequency Spectrum Details</li>
-            <li><b>Synchronized Zoom:</b> Plots 1, 2, and 4 are synchronized (Input Trace, Continuous Frequency Volume, ISA Frequency Spectrum)</li>
-            <li>Use the <b>time input box</b> in the sidebar to select analysis time</li>
-            <li>Click <b>Apply Time</b> to extract a new frequency spectrum from the heatmap</li>
-            <li>Use the <b>fine-tune slider</b> for precise time selection (now with 1ms precision)</li>
-            <li><b>NEW:</b> Choose between Ricker and Morlet wavelets for spectral decomposition</li>
-            <li><b>NEW:</b> Choose different colormaps for the heatmap visualization</li>
-            <li><b>NEW:</b> Manually control Y-axis range for frequency spectrum plot</li>
-            <li><b>NEW:</b> ISA Frequency Plot with synchronized zoom and detailed spectrum view</li>
-            <li><b>NEW:</b> Common Frequency Section display for low-frequency shadow detection</li>
-            </ul>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # 1. First Plot: Input Trace, Continuous Frequency Volume, Frequency Spectrum
-            st.subheader(f"1. Main Analysis Plots ({wavelet_name} Wavelet)")
-            fig, spectrum, frequencies, current_time = st.session_state.analyzer.create_interactive_plot(
-                st.session_state.seismic_data,
-                st.session_state.spectral_components,
-                st.session_state.trace_index,
-                st.session_state.selected_time,
-                colormap=selected_colormap,
-                yaxis_range=yaxis_range,
-                wavelet_type=st.session_state.wavelet_type
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # 2. Second Plot: ISA Frequency Spectrum (synchronized with above plots)
-            st.subheader(f"2. ISA Frequency Spectrum ({wavelet_name} Wavelet)")
-            st.markdown(f"""
-            <div class="isa-plot-box">
-                <h3>🔬 ISA Frequency Spectrum ({wavelet_name} Wavelet) - Synchronized View</h3>
-                <p>This plot is synchronized with the Input Trace and Continuous Frequency Volume plots above</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            isa_fig, isa_spectrum, isa_frequencies, isa_time = st.session_state.analyzer.create_isa_frequency_spectrum(
-                st.session_state.seismic_data,
-                st.session_state.spectral_components,
-                st.session_state.trace_index,
-                st.session_state.selected_time,
-                colormap=selected_colormap,
-                wavelet_type=st.session_state.wavelet_type
-            )
-            
-            st.plotly_chart(isa_fig, use_container_width=True)
-            
-            # 3. Third Plot: Frequency Spectrum Details
-            st.subheader(f"3. Frequency Spectrum Details ({wavelet_name} Wavelet)")
-            st.markdown(f"""
-            <div class="details-plot-box">
-                <h3>📊 Detailed Frequency Analysis ({wavelet_name} Wavelet)</h3>
-                <p>Detailed view of the frequency spectrum with Castagna frequency bands highlighted</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            details_fig = st.session_state.analyzer.create_frequency_spectrum_details(
-                isa_spectrum, isa_frequencies, st.session_state.selected_time, yaxis_range, st.session_state.wavelet_type
-            )
-            
-            st.plotly_chart(details_fig, use_container_width=True)
-            
-            # 4. Fourth Plot: Common Frequency Section
-            st.subheader(f"4. Common Frequency Section ({wavelet_name} Wavelet) - Low-Frequency Shadow Detection")
-            st.markdown(f"""
-            <div class="low-freq-shadow">
-                <h3>🔍 Castagna Low-Frequency Shadow Detection ({wavelet_name} Wavelet)</h3>
-                <p>Based on Castagna et al. (2003) - Compare different frequency sections to identify hydrocarbon-related low-frequency shadows</p>
-                <p><b>Look for:</b> Strong low-frequency energy beneath potential reservoirs that disappears at higher frequencies</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            common_freq_fig, common_freq_data = st.session_state.analyzer.create_common_frequency_section(
-                st.session_state.spectral_components,
-                common_freq,
-                colormap=selected_colormap,
-                wavelet_type=st.session_state.wavelet_type
-            )
-            
-            st.plotly_chart(common_freq_fig, use_container_width=True)
-            
-            # Interpretation guidance for low-frequency shadows
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.info(f"""
-                **📊 Low-Frequency Shadow Indicators ({wavelet_name}):**
-                - Strong amplitude at low frequencies (8-15 Hz)
-                - Located beneath amplitude anomalies/bright spots
-                - Disappears at higher frequencies (25+ Hz)
-                - Better defines reservoir boundaries
-                - Morlet wavelet may show clearer frequency localization
-                """)
-            
-            with col2:
-                st.info(f"""
-                **🎯 Castagna Methodology ({wavelet_name}):**
-                - Compare 10Hz vs 30Hz sections
-                - Look for persistent low-frequency energy
-                - Use multiple frequencies for confirmation
-                - Combine with amplitude analysis
-                - Morlet: Better for phase and detailed frequency analysis
-                - Ricker: Standard for general seismic interpretation
-                """)
-            
-            # Verify the data flow - create continuous slice separately for verification
-            continuous_slice, _ = st.session_state.analyzer.create_continuous_frequency_slice(
-                st.session_state.seismic_data,
-                st.session_state.spectral_components,
-                st.session_state.trace_index
-            )
-            
-            st.markdown(f"""
-            <div class="info-box">
-            <h3>🔍 Data Verification ({wavelet_name} Wavelet)</h3>
-            <p>The frequency spectrum is directly extracted from the continuous frequency volume (heatmap):</p>
-            <ul>
-            <li><b>Heatmap Shape:</b> {continuous_slice.shape[0]} time samples × {continuous_slice.shape[1]} frequency points</li>
-            <li><b>Extraction:</b> Taking row at time index corresponding to {st.session_state.selected_time:.1f} ms</li>
-            <li><b>Result:</b> 1D array of {len(spectrum)} amplitude values vs {len(frequencies)} frequencies</li>
-            <li><b>Time Index:</b> {np.argmin(np.abs(time_axis - st.session_state.selected_time))} (closest to {st.session_state.selected_time:.1f} ms)</li>
-            <li><b>Wavelet Type:</b> {wavelet_name}</li>
-            <li><b>Colormap:</b> {selected_colormap}</li>
-            <li><b>Y-axis Range:</b> {'Auto' if auto_yaxis else f'Manual [{yaxis_range[0]}, {yaxis_range[1]}]'}</li>
-            <li><b>Frequency Range:</b> {min_freq} Hz to {max_freq} Hz</li>
-            <li><b>Common Frequency Section:</b> {common_freq} Hz</li>
-            <li><b>Synchronized Plots:</b> Input Trace, Continuous Frequency Volume, ISA Frequency Spectrum</li>
-            </ul>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Spectral characteristics
-            characteristics = st.session_state.analyzer._get_spectral_characteristics(
-                spectrum, frequencies, st.session_state.selected_time
-            )
-            
-            # Display spectrum information
-            st.markdown(f"""
-            <div class="spectrum-info">
-                <h3>📊 Spectrum Analysis at {characteristics['selected_time']:.1f} ms ({wavelet_name} Wavelet)</h3>
-                <p><b>Frequency Range:</b> {frequencies[0]:.1f} Hz to {frequencies[-1]:.1f} Hz | 
-                <b>Spectrum Amplitude Range:</b> {np.min(spectrum):.3f} to {np.max(spectrum):.3f}</p>
-                <p><b>Data Source:</b> Horizontal slice from continuous frequency volume at {characteristics['selected_time']:.1f} ms</p>
-                <p><b>Visualization Settings:</b> Wavelet: {wavelet_name} | Colormap: {selected_colormap} | Y-axis: {'Auto' if auto_yaxis else 'Manual'} | Synchronized Zoom: Enabled</p>
-                <p><b>Common Frequency Analysis:</b> {common_freq} Hz section displayed for shadow detection</p>
-                <p><b>Plot Order:</b> 1. Input Trace → 2. Continuous Frequency Volume → 3. Frequency Spectrum → 4. ISA Frequency Spectrum → 5. Frequency Spectrum Details</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Display characteristics in columns
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Selected Time", f"{characteristics['selected_time']:.1f} ms")
-                st.metric("Dominant Frequency", f"{characteristics['dominant_frequency']:.1f} Hz")
-                st.metric("Peak Amplitude", f"{characteristics['peak_amplitude']:.3f}")
-            
-            with col2:
-                st.metric("Bandwidth (FWHM)", f"{characteristics['bandwidth']:.1f} Hz")
-                st.metric("Low Freq (10-20Hz)", f"{characteristics['low_freq_content']:.3f}")
-                st.metric("Mid Freq (20-40Hz)", f"{characteristics['mid_freq_content']:.3f}")
-            
-            with col3:
-                st.metric("High Freq (40-80Hz)", f"{characteristics['high_freq_content']:.3f}")
+            # Display results if Ricker analysis is done
+            if 'ricker_spectral_components' in st.session_state:
+                # Data flow explanation
+                st.markdown(f"""
+                <div class="data-flow-box">
+                    <h3>🔄 Data Flow: How the Frequency Spectrum is Calculated (Ricker Wavelet)</h3>
+                    <p><b>Seismic Trace</b> → <b>Spectral Decomposition</b> → <b>Continuous Frequency Volume</b> → <b>Horizontal Slice at {st.session_state.selected_time:.1f} ms</b> → <b>Frequency Spectrum</b></p>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # Castagna interpretation
-                st.subheader("Castagna Interpretation")
-                if characteristics['dominant_frequency'] < 20:
-                    st.info("🔵 **Low Frequency**: Potential tuning effects, good for thick reservoir characterization")
-                elif characteristics['dominant_frequency'] < 40:
-                    st.info("🟢 **Mid Frequency**: Good resolution for medium-thick beds")
-                else:
-                    st.info("🟡 **High Frequency**: Excellent thin bed resolution")
-            
-            # Frequency band analysis
-            st.subheader("Frequency Band Analysis")
-            band_data = {
-                'Frequency Band': ['Low (10-20 Hz)', 'Mid (20-40 Hz)', 'High (40-80 Hz)'],
-                'Average Amplitude': [
-                    characteristics['low_freq_content'],
-                    characteristics['mid_freq_content'], 
-                    characteristics['high_freq_content']
-                ]
-            }
-            
-            band_fig = px.bar(
-                band_data, 
-                x='Frequency Band', 
-                y='Average Amplitude',
-                title=f'Average Amplitude by Frequency Band ({wavelet_name} Wavelet)',
-                color='Frequency Band',
-                color_discrete_sequence=['#1f77b4', '#ff7f0e', '#2ca02c']
-            )
-            band_fig.update_layout(showlegend=False)
-            st.plotly_chart(band_fig, use_container_width=True)
-            
-            # Additional spectrum details
-            with st.expander("📈 Detailed Spectrum Information"):
-                col1, col2 = st.columns(2)
+                # Time input box in main area
+                st.markdown(f"""
+                <div class="time-input-box">
+                    <h3>⏰ Time Selection Control - Ricker Wavelet</h3>
+                    <p>Current analysis time: <b>{st.session_state.selected_time:.1f} ms</b></p>
+                    <p>Wavelet type: <b>Ricker</b></p>
+                    <p>Time range: {min_time:.1f} ms to {max_time:.1f} ms | Sample rate: {analyzer.sample_rate} ms</p>
+                    <p><b>Features:</b> Fine-tune slider with 1ms precision, synchronized zoom between plots</p>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                with col1:
-                    st.write("**Spectrum Statistics:**")
-                    st.write(f"- Minimum amplitude: {np.min(spectrum):.4f}")
-                    st.write(f"- Maximum amplitude: {np.max(spectrum):.4f}")
-                    st.write(f"- Mean amplitude: {np.mean(spectrum):.4f}")
-                    st.write(f"- Standard deviation: {np.std(spectrum):.4f}")
-                    st.write(f"- Number of frequency points: {len(frequencies)}")
+                # Information box
+                st.markdown("""
+                <div class="info-box">
+                <h3>🎯 Interactive Instructions (Ricker Wavelet)</h3>
+                <ul>
+                <li><b>Plot Order:</b> 1. Input Trace → 2. Continuous Frequency Volume → 3. Frequency Spectrum → 4. ISA Frequency Spectrum → 5. Frequency Spectrum Details</li>
+                <li><b>Synchronized Zoom:</b> Plots 1, 2, and 4 are synchronized (Input Trace, Continuous Frequency Volume, ISA Frequency Spectrum)</li>
+                <li>Use the <b>time input box</b> in the sidebar to select analysis time</li>
+                <li>Click <b>Apply Time</b> to extract a new frequency spectrum from the heatmap</li>
+                <li>Use the <b>fine-tune slider</b> for precise time selection (1ms precision)</li>
+                <li><b>Original Castagna Method:</b> Using Ricker wavelet as per the 2003 paper</li>
+                </ul>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 1. First Plot: Input Trace, Continuous Frequency Volume, Frequency Spectrum
+                st.subheader("1. Main Analysis Plots (Ricker Wavelet)")
+                fig, spectrum, frequencies, current_time = st.session_state.ricker_analyzer.create_interactive_plot(
+                    st.session_state.ricker_seismic_data,
+                    st.session_state.ricker_spectral_components,
+                    st.session_state.ricker_trace_index,
+                    st.session_state.selected_time,
+                    colormap=selected_colormap,
+                    yaxis_range=yaxis_range,
+                    wavelet_type='ricker'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 2. Second Plot: ISA Frequency Spectrum (synchronized with above plots)
+                st.subheader("2. ISA Frequency Spectrum (Ricker Wavelet)")
+                st.markdown("""
+                <div class="isa-plot-box">
+                    <h3>🔬 ISA Frequency Spectrum (Ricker Wavelet) - Synchronized View</h3>
+                    <p>This plot is synchronized with the Input Trace and Continuous Frequency Volume plots above</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                isa_fig, isa_spectrum, isa_frequencies, isa_time = st.session_state.ricker_analyzer.create_isa_frequency_spectrum(
+                    st.session_state.ricker_seismic_data,
+                    st.session_state.ricker_spectral_components,
+                    st.session_state.ricker_trace_index,
+                    st.session_state.selected_time,
+                    colormap=selected_colormap,
+                    wavelet_type='ricker'
+                )
+                
+                st.plotly_chart(isa_fig, use_container_width=True)
+                
+                # 3. Third Plot: Frequency Spectrum Details
+                st.subheader("3. Frequency Spectrum Details (Ricker Wavelet)")
+                st.markdown("""
+                <div class="details-plot-box">
+                    <h3>📊 Detailed Frequency Analysis (Ricker Wavelet)</h3>
+                    <p>Detailed view of the frequency spectrum with Castagna frequency bands highlighted</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                details_fig = st.session_state.ricker_analyzer.create_frequency_spectrum_details(
+                    isa_spectrum, isa_frequencies, st.session_state.selected_time, yaxis_range, 'ricker'
+                )
+                
+                st.plotly_chart(details_fig, use_container_width=True)
+                
+                # 4. Fourth Plot: Common Frequency Section
+                st.subheader("4. Common Frequency Section (Ricker Wavelet) - Low-Frequency Shadow Detection")
+                st.markdown("""
+                <div class="low-freq-shadow">
+                    <h3>🔍 Castagna Low-Frequency Shadow Detection (Ricker Wavelet)</h3>
+                    <p>Based on Castagna et al. (2003) - Compare different frequency sections to identify hydrocarbon-related low-frequency shadows</p>
+                    <p><b>Look for:</b> Strong low-frequency energy beneath potential reservoirs that disappears at higher frequencies</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                common_freq_fig, common_freq_data = st.session_state.ricker_analyzer.create_common_frequency_section(
+                    st.session_state.ricker_spectral_components,
+                    common_freq,
+                    colormap=selected_colormap,
+                    wavelet_type='ricker'
+                )
+                
+                st.plotly_chart(common_freq_fig, use_container_width=True)
+                
+                # Display Ricker-specific results
+                self._display_analysis_results(st.session_state.ricker_analyzer, spectrum, frequencies, 
+                                             st.session_state.selected_time, time_axis, continuous_slice, 
+                                             'ricker', selected_colormap, auto_yaxis, yaxis_range, 
+                                             min_freq, max_freq, common_freq)
+        
+        # Tab 2: Morlet Wavelet
+        with tab2:
+            # Process button for Morlet
+            if st.sidebar.button("Run Morlet Analysis", type="primary", key="morlet_btn"):
+                with st.spinner("Performing Morlet spectral decomposition..."):
+                    # Apply spectral decomposition with Morlet wavelet
+                    frequencies_continuous = np.linspace(min_freq, max_freq, num_frequencies)
+                    spectral_components = analyzer.apply_spectral_decomposition(
+                        seismic_data, frequencies_continuous, wavelet_type='morlet'
+                    )
                     
-                with col2:
-                    st.write("**Frequency Content:**")
-                    total_energy = np.sum(spectrum)
-                    low_percent = (characteristics['low_freq_content'] / total_energy * 100) if total_energy > 0 else 0
-                    mid_percent = (characteristics['mid_freq_content'] / total_energy * 100) if total_energy > 0 else 0
-                    high_percent = (characteristics['high_freq_content'] / total_energy * 100) if total_energy > 0 else 0
-                    
-                    st.write(f"- Low frequency content: {low_percent:.1f}%")
-                    st.write(f"- Mid frequency content: {mid_percent:.1f}%")
-                    st.write(f"- High frequency content: {high_percent:.1f}%")
-                    st.write(f"- Dominant frequency position: {np.argmax(spectrum)}/{len(spectrum)}")
-            
+                    # Store in session state
+                    st.session_state.morlet_spectral_components = spectral_components
+                    st.session_state.morlet_frequencies_continuous = frequencies_continuous
+                    st.session_state.morlet_analyzer = analyzer
+                    st.session_state.morlet_seismic_data = seismic_data
+                    st.session_state.morlet_trace_index = trace_index
+        
+            # Display results if Morlet analysis is done
+            if 'morlet_spectral_components' in st.session_state:
+                # Data flow explanation
+                st.markdown(f"""
+                <div class="data-flow-box">
+                    <h3>🔄 Data Flow: How the Frequency Spectrum is Calculated (Morlet Wavelet)</h3>
+                    <p><b>Seismic Trace</b> → <b>Spectral Decomposition</b> → <b>Continuous Frequency Volume</b> → <b>Horizontal Slice at {st.session_state.selected_time:.1f} ms</b> → <b>Frequency Spectrum</b></p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Time input box in main area
+                st.markdown(f"""
+                <div class="time-input-box">
+                    <h3>⏰ Time Selection Control - Morlet Wavelet</h3>
+                    <p>Current analysis time: <b>{st.session_state.selected_time:.1f} ms</b></p>
+                    <p>Wavelet type: <b>Morlet</b></p>
+                    <p>Time range: {min_time:.1f} ms to {max_time:.1f} ms | Sample rate: {analyzer.sample_rate} ms</p>
+                    <p><b>Features:</b> Better time-frequency localization, complex-valued analysis</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Information box
+                st.markdown("""
+                <div class="info-box">
+                <h3>🎯 Interactive Instructions (Morlet Wavelet)</h3>
+                <ul>
+                <li><b>Plot Order:</b> 1. Input Trace → 2. Continuous Frequency Volume → 3. Frequency Spectrum → 4. ISA Frequency Spectrum → 5. Frequency Spectrum Details</li>
+                <li><b>Synchronized Zoom:</b> Plots 1, 2, and 4 are synchronized (Input Trace, Continuous Frequency Volume, ISA Frequency Spectrum)</li>
+                <li>Use the <b>time input box</b> in the sidebar to select analysis time</li>
+                <li>Click <b>Apply Time</b> to extract a new frequency spectrum from the heatmap</li>
+                <li>Use the <b>fine-tune slider</b> for precise time selection (1ms precision)</li>
+                <li><b>Morlet Advantages:</b> Better time-frequency localization, suitable for non-stationary signals</li>
+                </ul>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 1. First Plot: Input Trace, Continuous Frequency Volume, Frequency Spectrum
+                st.subheader("1. Main Analysis Plots (Morlet Wavelet)")
+                fig, spectrum, frequencies, current_time = st.session_state.morlet_analyzer.create_interactive_plot(
+                    st.session_state.morlet_seismic_data,
+                    st.session_state.morlet_spectral_components,
+                    st.session_state.morlet_trace_index,
+                    st.session_state.selected_time,
+                    colormap=selected_colormap,
+                    yaxis_range=yaxis_range,
+                    wavelet_type='morlet'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 2. Second Plot: ISA Frequency Spectrum (synchronized with above plots)
+                st.subheader("2. ISA Frequency Spectrum (Morlet Wavelet)")
+                st.markdown("""
+                <div class="isa-plot-box">
+                    <h3>🔬 ISA Frequency Spectrum (Morlet Wavelet) - Synchronized View</h3>
+                    <p>This plot is synchronized with the Input Trace and Continuous Frequency Volume plots above</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                isa_fig, isa_spectrum, isa_frequencies, isa_time = st.session_state.morlet_analyzer.create_isa_frequency_spectrum(
+                    st.session_state.morlet_seismic_data,
+                    st.session_state.morlet_spectral_components,
+                    st.session_state.morlet_trace_index,
+                    st.session_state.selected_time,
+                    colormap=selected_colormap,
+                    wavelet_type='morlet'
+                )
+                
+                st.plotly_chart(isa_fig, use_container_width=True)
+                
+                # 3. Third Plot: Frequency Spectrum Details
+                st.subheader("3. Frequency Spectrum Details (Morlet Wavelet)")
+                st.markdown("""
+                <div class="details-plot-box">
+                    <h3>📊 Detailed Frequency Analysis (Morlet Wavelet)</h3>
+                    <p>Detailed view of the frequency spectrum with Castagna frequency bands highlighted</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                details_fig = st.session_state.morlet_analyzer.create_frequency_spectrum_details(
+                    isa_spectrum, isa_frequencies, st.session_state.selected_time, yaxis_range, 'morlet'
+                )
+                
+                st.plotly_chart(details_fig, use_container_width=True)
+                
+                # 4. Fourth Plot: Common Frequency Section
+                st.subheader("4. Common Frequency Section (Morlet Wavelet) - Low-Frequency Shadow Detection")
+                st.markdown("""
+                <div class="low-freq-shadow">
+                    <h3>🔍 Castagna Low-Frequency Shadow Detection (Morlet Wavelet)</h3>
+                    <p>Based on Castagna et al. (2003) - Compare different frequency sections to identify hydrocarbon-related low-frequency shadows</p>
+                    <p><b>Look for:</b> Strong low-frequency energy beneath potential reservoirs that disappears at higher frequencies</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                common_freq_fig, common_freq_data = st.session_state.morlet_analyzer.create_common_frequency_section(
+                    st.session_state.morlet_spectral_components,
+                    common_freq,
+                    colormap=selected_colormap,
+                    wavelet_type='morlet'
+                )
+                
+                st.plotly_chart(common_freq_fig, use_container_width=True)
+                
+                # Display Morlet-specific results
+                self._display_analysis_results(st.session_state.morlet_analyzer, spectrum, frequencies, 
+                                             st.session_state.selected_time, time_axis, continuous_slice, 
+                                             'morlet', selected_colormap, auto_yaxis, yaxis_range, 
+                                             min_freq, max_freq, common_freq)
+    
     else:
         # Welcome message when no file is uploaded
         st.markdown("""
@@ -1334,21 +1326,19 @@ def main():
             <div class="info-box" style='max-width: 600px; margin: 2rem auto;'>
                 <h3>🔬 Analysis Features</h3>
                 <ul style='text-align: left;'>
-                    <li>Spectral decomposition using Ricker wavelets (Castagna method)</li>
-                    <li><b>NEW:</b> Spectral decomposition using Morlet wavelets</li>
+                    <li><b>Tab 1:</b> Spectral decomposition using Ricker wavelets (Original Castagna method)</li>
+                    <li><b>Tab 2:</b> Spectral decomposition using Morlet wavelets (Enhanced time-frequency localization)</li>
                     <li>Interactive time selection via text input</li>
                     <li>Continuous frequency volume visualization</li>
                     <li>Frequency spectrum extracted directly from frequency volume</li>
                     <li>Castagna frequency band analysis</li>
                     <li>Dominant frequency detection</li>
                     <li>Bandwidth calculation (FWHM)</li>
-                    <li><b>NEW:</b> 1ms precision in fine-tune time slider</li>
-                    <li><b>NEW:</b> Multiple colormap options for heatmap</li>
-                    <li><b>NEW:</b> Manual Y-axis range control for frequency spectrum</li>
-                    <li><b>NEW:</b> Synchronized zoom between input trace, continuous frequency volume, and ISA frequency spectrum</li>
-                    <li><b>NEW:</b> Plot order: 1. Input Trace → 2. Continuous Frequency Volume → 3. Frequency Spectrum → 4. ISA Frequency Spectrum → 5. Frequency Spectrum Details</li>
-                    <li><b>NEW:</b> Common Frequency Section for low-frequency shadow detection</li>
-                    <li><b>NEW:</b> Wavelet comparison: Ricker vs Morlet for different analysis needs</li>
+                    <li>1ms precision in fine-tune time slider</li>
+                    <li>Multiple colormap options for heatmap</li>
+                    <li>Manual Y-axis range control for frequency spectrum</li>
+                    <li>Synchronized zoom between input trace, continuous frequency volume, and ISA frequency spectrum</li>
+                    <li>Common Frequency Section for low-frequency shadow detection</li>
                 </ul>
             </div>
             <div class="info-box" style='max-width: 600px; margin: 2rem auto;'>
@@ -1359,16 +1349,126 @@ def main():
                     for reservoir characterization and thin-bed detection.
                 </p>
                 <p style='text-align: left;'>
-                    <b>NEW:</b> Low-frequency shadow detection using common frequency sections
-                    as described in the paper for direct hydrocarbon indication.
-                </p>
-                <p style='text-align: left;'>
-                    <b>NEW:</b> Morlet wavelet implementation for superior time-frequency
-                    localization and phase analysis capabilities.
+                    <b>Dual Wavelet Approach:</b> Compare Ricker (original method) vs Morlet (enhanced localization)
+                    for comprehensive spectral analysis.
                 </p>
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+def _display_analysis_results(analyzer, spectrum, frequencies, selected_time, time_axis, continuous_slice, 
+                            wavelet_type, selected_colormap, auto_yaxis, yaxis_range, min_freq, max_freq, common_freq):
+    """Helper function to display analysis results for both wavelet types"""
+    
+    wavelet_name = "Ricker" if wavelet_type == 'ricker' else "Morlet"
+    
+    # Verify the data flow - create continuous slice separately for verification
+    st.markdown(f"""
+    <div class="info-box">
+    <h3>🔍 Data Verification ({wavelet_name} Wavelet)</h3>
+    <p>The frequency spectrum is directly extracted from the continuous frequency volume (heatmap):</p>
+    <ul>
+    <li><b>Heatmap Shape:</b> {continuous_slice.shape[0]} time samples × {continuous_slice.shape[1]} frequency points</li>
+    <li><b>Extraction:</b> Taking row at time index corresponding to {selected_time:.1f} ms</li>
+    <li><b>Result:</b> 1D array of {len(spectrum)} amplitude values vs {len(frequencies)} frequencies</li>
+    <li><b>Time Index:</b> {np.argmin(np.abs(time_axis - selected_time))} (closest to {selected_time:.1f} ms)</li>
+    <li><b>Wavelet Type:</b> {wavelet_name}</li>
+    <li><b>Colormap:</b> {selected_colormap}</li>
+    <li><b>Y-axis Range:</b> {'Auto' if auto_yaxis else f'Manual [{yaxis_range[0]}, {yaxis_range[1]}]'}</li>
+    <li><b>Frequency Range:</b> {min_freq} Hz to {max_freq} Hz</li>
+    <li><b>Common Frequency Section:</b> {common_freq} Hz</li>
+    <li><b>Synchronized Plots:</b> Input Trace, Continuous Frequency Volume, ISA Frequency Spectrum</li>
+    </ul>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Spectral characteristics
+    characteristics = analyzer._get_spectral_characteristics(
+        spectrum, frequencies, selected_time
+    )
+    
+    # Display spectrum information
+    st.markdown(f"""
+    <div class="spectrum-info">
+        <h3>📊 Spectrum Analysis at {characteristics['selected_time']:.1f} ms ({wavelet_name} Wavelet)</h3>
+        <p><b>Frequency Range:</b> {frequencies[0]:.1f} Hz to {frequencies[-1]:.1f} Hz | 
+        <b>Spectrum Amplitude Range:</b> {np.min(spectrum):.3f} to {np.max(spectrum):.3f}</p>
+        <p><b>Data Source:</b> Horizontal slice from continuous frequency volume at {characteristics['selected_time']:.1f} ms</p>
+        <p><b>Visualization Settings:</b> Wavelet: {wavelet_name} | Colormap: {selected_colormap} | Y-axis: {'Auto' if auto_yaxis else 'Manual'} | Synchronized Zoom: Enabled</p>
+        <p><b>Common Frequency Analysis:</b> {common_freq} Hz section displayed for shadow detection</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Display characteristics in columns
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Selected Time", f"{characteristics['selected_time']:.1f} ms")
+        st.metric("Dominant Frequency", f"{characteristics['dominant_frequency']:.1f} Hz")
+        st.metric("Peak Amplitude", f"{characteristics['peak_amplitude']:.3f}")
+    
+    with col2:
+        st.metric("Bandwidth (FWHM)", f"{characteristics['bandwidth']:.1f} Hz")
+        st.metric("Low Freq (10-20Hz)", f"{characteristics['low_freq_content']:.3f}")
+        st.metric("Mid Freq (20-40Hz)", f"{characteristics['mid_freq_content']:.3f}")
+    
+    with col3:
+        st.metric("High Freq (40-80Hz)", f"{characteristics['high_freq_content']:.3f}")
+        
+        # Castagna interpretation
+        st.subheader("Castagna Interpretation")
+        if characteristics['dominant_frequency'] < 20:
+            st.info("🔵 **Low Frequency**: Potential tuning effects, good for thick reservoir characterization")
+        elif characteristics['dominant_frequency'] < 40:
+            st.info("🟢 **Mid Frequency**: Good resolution for medium-thick beds")
+        else:
+            st.info("🟡 **High Frequency**: Excellent thin bed resolution")
+    
+    # Frequency band analysis
+    st.subheader("Frequency Band Analysis")
+    band_data = {
+        'Frequency Band': ['Low (10-20 Hz)', 'Mid (20-40 Hz)', 'High (40-80 Hz)'],
+        'Average Amplitude': [
+            characteristics['low_freq_content'],
+            characteristics['mid_freq_content'], 
+            characteristics['high_freq_content']
+        ]
+    }
+    
+    band_fig = px.bar(
+        band_data, 
+        x='Frequency Band', 
+        y='Average Amplitude',
+        title=f'Average Amplitude by Frequency Band ({wavelet_name} Wavelet)',
+        color='Frequency Band',
+        color_discrete_sequence=['#1f77b4', '#ff7f0e', '#2ca02c']
+    )
+    band_fig.update_layout(showlegend=False)
+    st.plotly_chart(band_fig, use_container_width=True)
+    
+    # Additional spectrum details
+    with st.expander("📈 Detailed Spectrum Information"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Spectrum Statistics:**")
+            st.write(f"- Minimum amplitude: {np.min(spectrum):.4f}")
+            st.write(f"- Maximum amplitude: {np.max(spectrum):.4f}")
+            st.write(f"- Mean amplitude: {np.mean(spectrum):.4f}")
+            st.write(f"- Standard deviation: {np.std(spectrum):.4f}")
+            st.write(f"- Number of frequency points: {len(frequencies)}")
+            
+        with col2:
+            st.write("**Frequency Content:**")
+            total_energy = np.sum(spectrum)
+            low_percent = (characteristics['low_freq_content'] / total_energy * 100) if total_energy > 0 else 0
+            mid_percent = (characteristics['mid_freq_content'] / total_energy * 100) if total_energy > 0 else 0
+            high_percent = (characteristics['high_freq_content'] / total_energy * 100) if total_energy > 0 else 0
+            
+            st.write(f"- Low frequency content: {low_percent:.1f}%")
+            st.write(f"- Mid frequency content: {mid_percent:.1f}%")
+            st.write(f"- High frequency content: {high_percent:.1f}%")
+            st.write(f"- Dominant frequency position: {np.argmax(spectrum)}/{len(spectrum)}")
 
 if __name__ == "__main__":
     main()
