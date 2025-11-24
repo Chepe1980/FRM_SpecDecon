@@ -139,9 +139,9 @@ class CastagnaFrequencyAnalysis:
 
         return spectral_components
 
-    def apply_morlet_spectral_decomposition(self, seismic_data, frequencies=np.arange(10, 81, 5)):
+    def apply_morlet_spectral_decomposition(self, seismic_data, frequencies=np.arange(10, 81, 2)):
         """
-        Spectral decomposition using Morlet wavelets
+        Spectral decomposition using Morlet wavelets with higher frequency resolution
         
         MORLET DECOMPOSITION THEORY:
         The Morlet wavelet provides superior time-frequency localization
@@ -1308,11 +1308,12 @@ def main():
         with tab2:
             # Process button for Morlet
             if st.sidebar.button("Run Morlet Analysis", type="primary", key="morlet_btn"):
-                with st.spinner("Performing Morlet spectral decomposition..."):
-                    # Apply spectral decomposition with Morlet wavelet
-                    frequencies_continuous = np.linspace(min_freq, max_freq, num_frequencies)
-                    spectral_components = analyzer.apply_spectral_decomposition(
-                        seismic_data, frequencies_continuous, wavelet_type='morlet'
+                with st.spinner("Performing Morlet spectral decomposition with higher frequency resolution..."):
+                    # Apply spectral decomposition with Morlet wavelet - use higher frequency resolution
+                    morlet_num_frequencies = min(100, num_frequencies * 2)  # Double the frequency resolution for Morlet
+                    frequencies_continuous = np.linspace(min_freq, max_freq, morlet_num_frequencies)
+                    spectral_components = analyzer.apply_morlet_spectral_decomposition(
+                        seismic_data, frequencies_continuous
                     )
                     
                     # Store in session state
@@ -1329,6 +1330,7 @@ def main():
                 <div class="data-flow-box">
                     <h3>🔄 Data Flow: How the Frequency Spectrum is Calculated (Morlet Wavelet)</h3>
                     <p><b>Seismic Trace</b> → <b>Spectral Decomposition</b> → <b>Continuous Frequency Volume</b> → <b>Horizontal Slice at {st.session_state.selected_time:.1f} ms</b> → <b>Frequency Spectrum</b></p>
+                    <p><b>Note:</b> Morlet analysis uses higher frequency resolution ({len(st.session_state.morlet_frequencies_continuous)} frequencies) for better time-frequency localization</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -1339,7 +1341,7 @@ def main():
                     <p>Current analysis time: <b>{st.session_state.selected_time:.1f} ms</b></p>
                     <p>Wavelet type: <b>Morlet</b></p>
                     <p>Time range: {min_time:.1f} ms to {max_time:.1f} ms | Sample rate: {analyzer.sample_rate} ms</p>
-                    <p><b>Features:</b> Better time-frequency localization, complex-valued analysis</p>
+                    <p><b>Features:</b> Higher frequency resolution ({len(st.session_state.morlet_frequencies_continuous)} frequencies), better time-frequency localization</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -1353,7 +1355,7 @@ def main():
                 <li>Use the <b>time input box</b> in the sidebar to select analysis time</li>
                 <li>Click <b>Apply Time</b> to extract a new frequency spectrum from the heatmap</li>
                 <li>Use the <b>fine-tune slider</b> for precise time selection (1ms precision)</li>
-                <li><b>Morlet Advantages:</b> Better time-frequency localization, suitable for non-stationary signals</li>
+                <li><b>Morlet Advantages:</b> Higher frequency resolution ({len(st.session_state.morlet_frequencies_continuous)} frequencies), better time-frequency localization, suitable for non-stationary signals</li>
                 </ul>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1459,7 +1461,7 @@ def main():
                 <h3>🔬 Analysis Features</h3>
                 <ul style='text-align: left;'>
                     <li><b>Tab 1:</b> Spectral decomposition using Ricker wavelets (Original Castagna method)</li>
-                    <li><b>Tab 2:</b> Spectral decomposition using Morlet wavelets (Enhanced time-frequency localization)</li>
+                    <li><b>Tab 2:</b> Spectral decomposition using Morlet wavelets (Enhanced time-frequency localization with higher frequency resolution)</li>
                     <li>Interactive time selection via text input</li>
                     <li>Continuous frequency volume visualization</li>
                     <li>Frequency spectrum extracted directly from frequency volume</li>
@@ -1481,7 +1483,7 @@ def main():
                     for reservoir characterization and thin-bed detection.
                 </p>
                 <p style='text-align: left;'>
-                    <b>Dual Wavelet Approach:</b> Compare Ricker (original method) vs Morlet (enhanced localization)
+                    <b>Dual Wavelet Approach:</b> Compare Ricker (original method) vs Morlet (enhanced localization with higher frequency resolution)
                     for comprehensive spectral analysis.
                 </p>
             </div>
