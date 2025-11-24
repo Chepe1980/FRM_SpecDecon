@@ -708,6 +708,121 @@ class CastagnaFrequencyAnalysis:
         }
 
 
+def display_analysis_results(analyzer, spectrum, frequencies, selected_time, time_axis, continuous_slice, 
+                           wavelet_type, selected_colormap, auto_yaxis, yaxis_range, min_freq, max_freq, common_freq):
+    """Helper function to display analysis results for both wavelet types"""
+    
+    wavelet_name = "Ricker" if wavelet_type == 'ricker' else "Morlet"
+    
+    # Verify the data flow - create continuous slice separately for verification
+    st.markdown(f"""
+    <div class="info-box">
+    <h3>🔍 Data Verification ({wavelet_name} Wavelet)</h3>
+    <p>The frequency spectrum is directly extracted from the continuous frequency volume (heatmap):</p>
+    <ul>
+    <li><b>Heatmap Shape:</b> {continuous_slice.shape[0]} time samples × {continuous_slice.shape[1]} frequency points</li>
+    <li><b>Extraction:</b> Taking row at time index corresponding to {selected_time:.1f} ms</li>
+    <li><b>Result:</b> 1D array of {len(spectrum)} amplitude values vs {len(frequencies)} frequencies</li>
+    <li><b>Time Index:</b> {np.argmin(np.abs(time_axis - selected_time))} (closest to {selected_time:.1f} ms)</li>
+    <li><b>Wavelet Type:</b> {wavelet_name}</li>
+    <li><b>Colormap:</b> {selected_colormap}</li>
+    <li><b>Y-axis Range:</b> {'Auto' if auto_yaxis else f'Manual [{yaxis_range[0]}, {yaxis_range[1]}]'}</li>
+    <li><b>Frequency Range:</b> {min_freq} Hz to {max_freq} Hz</li>
+    <li><b>Common Frequency Section:</b> {common_freq} Hz</li>
+    <li><b>Synchronized Plots:</b> Input Trace, Continuous Frequency Volume, ISA Frequency Spectrum</li>
+    </ul>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Spectral characteristics
+    characteristics = analyzer._get_spectral_characteristics(
+        spectrum, frequencies, selected_time
+    )
+    
+    # Display spectrum information
+    st.markdown(f"""
+    <div class="spectrum-info">
+        <h3>📊 Spectrum Analysis at {characteristics['selected_time']:.1f} ms ({wavelet_name} Wavelet)</h3>
+        <p><b>Frequency Range:</b> {frequencies[0]:.1f} Hz to {frequencies[-1]:.1f} Hz | 
+        <b>Spectrum Amplitude Range:</b> {np.min(spectrum):.3f} to {np.max(spectrum):.3f}</p>
+        <p><b>Data Source:</b> Horizontal slice from continuous frequency volume at {characteristics['selected_time']:.1f} ms</p>
+        <p><b>Visualization Settings:</b> Wavelet: {wavelet_name} | Colormap: {selected_colormap} | Y-axis: {'Auto' if auto_yaxis else 'Manual'} | Synchronized Zoom: Enabled</p>
+        <p><b>Common Frequency Analysis:</b> {common_freq} Hz section displayed for shadow detection</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Display characteristics in columns
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Selected Time", f"{characteristics['selected_time']:.1f} ms")
+        st.metric("Dominant Frequency", f"{characteristics['dominant_frequency']:.1f} Hz")
+        st.metric("Peak Amplitude", f"{characteristics['peak_amplitude']:.3f}")
+    
+    with col2:
+        st.metric("Bandwidth (FWHM)", f"{characteristics['bandwidth']:.1f} Hz")
+        st.metric("Low Freq (10-20Hz)", f"{characteristics['low_freq_content']:.3f}")
+        st.metric("Mid Freq (20-40Hz)", f"{characteristics['mid_freq_content']:.3f}")
+    
+    with col3:
+        st.metric("High Freq (40-80Hz)", f"{characteristics['high_freq_content']:.3f}")
+        
+        # Castagna interpretation
+        st.subheader("Castagna Interpretation")
+        if characteristics['dominant_frequency'] < 20:
+            st.info("🔵 **Low Frequency**: Potential tuning effects, good for thick reservoir characterization")
+        elif characteristics['dominant_frequency'] < 40:
+            st.info("🟢 **Mid Frequency**: Good resolution for medium-thick beds")
+        else:
+            st.info("🟡 **High Frequency**: Excellent thin bed resolution")
+    
+    # Frequency band analysis
+    st.subheader("Frequency Band Analysis")
+    band_data = {
+        'Frequency Band': ['Low (10-20 Hz)', 'Mid (20-40 Hz)', 'High (40-80 Hz)'],
+        'Average Amplitude': [
+            characteristics['low_freq_content'],
+            characteristics['mid_freq_content'], 
+            characteristics['high_freq_content']
+        ]
+    }
+    
+    band_fig = px.bar(
+        band_data, 
+        x='Frequency Band', 
+        y='Average Amplitude',
+        title=f'Average Amplitude by Frequency Band ({wavelet_name} Wavelet)',
+        color='Frequency Band',
+        color_discrete_sequence=['#1f77b4', '#ff7f0e', '#2ca02c']
+    )
+    band_fig.update_layout(showlegend=False)
+    st.plotly_chart(band_fig, use_container_width=True)
+    
+    # Additional spectrum details
+    with st.expander("📈 Detailed Spectrum Information"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Spectrum Statistics:**")
+            st.write(f"- Minimum amplitude: {np.min(spectrum):.4f}")
+            st.write(f"- Maximum amplitude: {np.max(spectrum):.4f}")
+            st.write(f"- Mean amplitude: {np.mean(spectrum):.4f}")
+            st.write(f"- Standard deviation: {np.std(spectrum):.4f}")
+            st.write(f"- Number of frequency points: {len(frequencies)}")
+            
+        with col2:
+            st.write("**Frequency Content:**")
+            total_energy = np.sum(spectrum)
+            low_percent = (characteristics['low_freq_content'] / total_energy * 100) if total_energy > 0 else 0
+            mid_percent = (characteristics['mid_freq_content'] / total_energy * 100) if total_energy > 0 else 0
+            high_percent = (characteristics['high_freq_content'] / total_energy * 100) if total_energy > 0 else 0
+            
+            st.write(f"- Low frequency content: {low_percent:.1f}%")
+            st.write(f"- Mid frequency content: {mid_percent:.1f}%")
+            st.write(f"- High frequency content: {high_percent:.1f}%")
+            st.write(f"- Dominant frequency position: {np.argmax(spectrum)}/{len(spectrum)}")
+
+
 def main():
     st.set_page_config(
         page_title="Castagna Spectral Analysis",
@@ -1173,11 +1288,18 @@ def main():
                 
                 st.plotly_chart(common_freq_fig, use_container_width=True)
                 
+                # Get continuous slice for verification
+                continuous_slice, _ = st.session_state.ricker_analyzer.create_continuous_frequency_slice(
+                    st.session_state.ricker_seismic_data,
+                    st.session_state.ricker_spectral_components,
+                    st.session_state.ricker_trace_index
+                )
+                
                 # Display Ricker-specific results
-                self._display_analysis_results(st.session_state.ricker_analyzer, spectrum, frequencies, 
-                                             st.session_state.selected_time, time_axis, continuous_slice, 
-                                             'ricker', selected_colormap, auto_yaxis, yaxis_range, 
-                                             min_freq, max_freq, common_freq)
+                display_analysis_results(st.session_state.ricker_analyzer, spectrum, frequencies, 
+                                      st.session_state.selected_time, time_axis, continuous_slice, 
+                                      'ricker', selected_colormap, auto_yaxis, yaxis_range, 
+                                      min_freq, max_freq, common_freq)
         
         # Tab 2: Morlet Wavelet
         with tab2:
@@ -1301,11 +1423,18 @@ def main():
                 
                 st.plotly_chart(common_freq_fig, use_container_width=True)
                 
+                # Get continuous slice for verification
+                continuous_slice, _ = st.session_state.morlet_analyzer.create_continuous_frequency_slice(
+                    st.session_state.morlet_seismic_data,
+                    st.session_state.morlet_spectral_components,
+                    st.session_state.morlet_trace_index
+                )
+                
                 # Display Morlet-specific results
-                self._display_analysis_results(st.session_state.morlet_analyzer, spectrum, frequencies, 
-                                             st.session_state.selected_time, time_axis, continuous_slice, 
-                                             'morlet', selected_colormap, auto_yaxis, yaxis_range, 
-                                             min_freq, max_freq, common_freq)
+                display_analysis_results(st.session_state.morlet_analyzer, spectrum, frequencies, 
+                                      st.session_state.selected_time, time_axis, continuous_slice, 
+                                      'morlet', selected_colormap, auto_yaxis, yaxis_range, 
+                                      min_freq, max_freq, common_freq)
     
     else:
         # Welcome message when no file is uploaded
@@ -1355,120 +1484,6 @@ def main():
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-def _display_analysis_results(analyzer, spectrum, frequencies, selected_time, time_axis, continuous_slice, 
-                            wavelet_type, selected_colormap, auto_yaxis, yaxis_range, min_freq, max_freq, common_freq):
-    """Helper function to display analysis results for both wavelet types"""
-    
-    wavelet_name = "Ricker" if wavelet_type == 'ricker' else "Morlet"
-    
-    # Verify the data flow - create continuous slice separately for verification
-    st.markdown(f"""
-    <div class="info-box">
-    <h3>🔍 Data Verification ({wavelet_name} Wavelet)</h3>
-    <p>The frequency spectrum is directly extracted from the continuous frequency volume (heatmap):</p>
-    <ul>
-    <li><b>Heatmap Shape:</b> {continuous_slice.shape[0]} time samples × {continuous_slice.shape[1]} frequency points</li>
-    <li><b>Extraction:</b> Taking row at time index corresponding to {selected_time:.1f} ms</li>
-    <li><b>Result:</b> 1D array of {len(spectrum)} amplitude values vs {len(frequencies)} frequencies</li>
-    <li><b>Time Index:</b> {np.argmin(np.abs(time_axis - selected_time))} (closest to {selected_time:.1f} ms)</li>
-    <li><b>Wavelet Type:</b> {wavelet_name}</li>
-    <li><b>Colormap:</b> {selected_colormap}</li>
-    <li><b>Y-axis Range:</b> {'Auto' if auto_yaxis else f'Manual [{yaxis_range[0]}, {yaxis_range[1]}]'}</li>
-    <li><b>Frequency Range:</b> {min_freq} Hz to {max_freq} Hz</li>
-    <li><b>Common Frequency Section:</b> {common_freq} Hz</li>
-    <li><b>Synchronized Plots:</b> Input Trace, Continuous Frequency Volume, ISA Frequency Spectrum</li>
-    </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Spectral characteristics
-    characteristics = analyzer._get_spectral_characteristics(
-        spectrum, frequencies, selected_time
-    )
-    
-    # Display spectrum information
-    st.markdown(f"""
-    <div class="spectrum-info">
-        <h3>📊 Spectrum Analysis at {characteristics['selected_time']:.1f} ms ({wavelet_name} Wavelet)</h3>
-        <p><b>Frequency Range:</b> {frequencies[0]:.1f} Hz to {frequencies[-1]:.1f} Hz | 
-        <b>Spectrum Amplitude Range:</b> {np.min(spectrum):.3f} to {np.max(spectrum):.3f}</p>
-        <p><b>Data Source:</b> Horizontal slice from continuous frequency volume at {characteristics['selected_time']:.1f} ms</p>
-        <p><b>Visualization Settings:</b> Wavelet: {wavelet_name} | Colormap: {selected_colormap} | Y-axis: {'Auto' if auto_yaxis else 'Manual'} | Synchronized Zoom: Enabled</p>
-        <p><b>Common Frequency Analysis:</b> {common_freq} Hz section displayed for shadow detection</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Display characteristics in columns
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric("Selected Time", f"{characteristics['selected_time']:.1f} ms")
-        st.metric("Dominant Frequency", f"{characteristics['dominant_frequency']:.1f} Hz")
-        st.metric("Peak Amplitude", f"{characteristics['peak_amplitude']:.3f}")
-    
-    with col2:
-        st.metric("Bandwidth (FWHM)", f"{characteristics['bandwidth']:.1f} Hz")
-        st.metric("Low Freq (10-20Hz)", f"{characteristics['low_freq_content']:.3f}")
-        st.metric("Mid Freq (20-40Hz)", f"{characteristics['mid_freq_content']:.3f}")
-    
-    with col3:
-        st.metric("High Freq (40-80Hz)", f"{characteristics['high_freq_content']:.3f}")
-        
-        # Castagna interpretation
-        st.subheader("Castagna Interpretation")
-        if characteristics['dominant_frequency'] < 20:
-            st.info("🔵 **Low Frequency**: Potential tuning effects, good for thick reservoir characterization")
-        elif characteristics['dominant_frequency'] < 40:
-            st.info("🟢 **Mid Frequency**: Good resolution for medium-thick beds")
-        else:
-            st.info("🟡 **High Frequency**: Excellent thin bed resolution")
-    
-    # Frequency band analysis
-    st.subheader("Frequency Band Analysis")
-    band_data = {
-        'Frequency Band': ['Low (10-20 Hz)', 'Mid (20-40 Hz)', 'High (40-80 Hz)'],
-        'Average Amplitude': [
-            characteristics['low_freq_content'],
-            characteristics['mid_freq_content'], 
-            characteristics['high_freq_content']
-        ]
-    }
-    
-    band_fig = px.bar(
-        band_data, 
-        x='Frequency Band', 
-        y='Average Amplitude',
-        title=f'Average Amplitude by Frequency Band ({wavelet_name} Wavelet)',
-        color='Frequency Band',
-        color_discrete_sequence=['#1f77b4', '#ff7f0e', '#2ca02c']
-    )
-    band_fig.update_layout(showlegend=False)
-    st.plotly_chart(band_fig, use_container_width=True)
-    
-    # Additional spectrum details
-    with st.expander("📈 Detailed Spectrum Information"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**Spectrum Statistics:**")
-            st.write(f"- Minimum amplitude: {np.min(spectrum):.4f}")
-            st.write(f"- Maximum amplitude: {np.max(spectrum):.4f}")
-            st.write(f"- Mean amplitude: {np.mean(spectrum):.4f}")
-            st.write(f"- Standard deviation: {np.std(spectrum):.4f}")
-            st.write(f"- Number of frequency points: {len(frequencies)}")
-            
-        with col2:
-            st.write("**Frequency Content:**")
-            total_energy = np.sum(spectrum)
-            low_percent = (characteristics['low_freq_content'] / total_energy * 100) if total_energy > 0 else 0
-            mid_percent = (characteristics['mid_freq_content'] / total_energy * 100) if total_energy > 0 else 0
-            high_percent = (characteristics['high_freq_content'] / total_energy * 100) if total_energy > 0 else 0
-            
-            st.write(f"- Low frequency content: {low_percent:.1f}%")
-            st.write(f"- Mid frequency content: {mid_percent:.1f}%")
-            st.write(f"- High frequency content: {high_percent:.1f}%")
-            st.write(f"- Dominant frequency position: {np.argmax(spectrum)}/{len(spectrum)}")
 
 if __name__ == "__main__":
     main()
