@@ -1157,7 +1157,7 @@ def main():
             yaxis_range = None
         
         # Time selection section in sidebar - ALL IN MILLISECONDS
-        st.sidebar.subheader("Time Selection (ms)")
+        st.sidebar.subheader("Time Selection")
         time_axis = np.arange(seismic_data.shape[0]) * analyzer.sample_rate
         min_time = float(time_axis[0])
         max_time = float(time_axis[-1])
