@@ -1085,7 +1085,7 @@ def main():
         
         st.sidebar.success(f"Data loaded: {seismic_data.shape}")
         
-        # Configuration options - MOVE THESE INSIDE THE FILE UPLOAD CONDITION
+        # Configuration options - MOVED INSIDE THE FILE UPLOAD CONDITION
         trace_index = st.sidebar.slider(
             "Select Trace Index", 
             min_value=0, 
