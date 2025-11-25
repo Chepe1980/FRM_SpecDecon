@@ -1163,19 +1163,25 @@ def main():
         max_time = float(time_axis[-1])
         default_time = float(time_axis[len(time_axis) // 2])
         
-        # Initialize selected time in session state
+        # Initialize selected time in session state - ensure it's within bounds
         if 'selected_time' not in st.session_state:
-            st.session_state.selected_time = default_time
+            st.session_state.selected_time = min(default_time, max_time)
+        
+        # Ensure selected time is within current bounds
+        st.session_state.selected_time = min(max(st.session_state.selected_time, min_time), max_time)
         
         # Display actual time range in milliseconds
         st.sidebar.info(f"Time range: {min_time:.1f} ms to {max_time:.1f} ms")
         
         # Time input with number input - IN MILLISECONDS
+        # Use a safe default value that's guaranteed to be within bounds
+        safe_default_time = min(max(st.session_state.selected_time, min_time), max_time)
+        
         selected_time_input = st.sidebar.number_input(
             "Analysis Time (ms)",
             min_value=min_time,
             max_value=max_time,
-            value=st.session_state.selected_time,
+            value=safe_default_time,
             step=analyzer.sample_rate,
             format="%.1f",
             key="time_input"
