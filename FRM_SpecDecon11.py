@@ -1310,28 +1310,15 @@ def main():
                     clickmode='event+select'
                 )
                 
-                # Display the plot and handle click events
+                # Display the plot and handle click events using Streamlit's event system
                 plot_click = st.plotly_chart(fig, use_container_width=True, key="ricker_main_plot")
                 
-                # Handle click events on the main plot
-                if plot_click and hasattr(plot_click, 'point_numbers') and plot_click.point_numbers:
-                    # Get the clicked point data
-                    clicked_point = plot_click.point_numbers[0]
-                    if clicked_point is not None:
-                        # Extract time from clicked point (y-coordinate)
-                        # Since the heatmap is in the second subplot (col=2), we need to handle the click properly
-                        try:
-                            # Get the click data from the event
-                            click_data = st.session_state.get('ricker_click_data', None)
-                            if click_data and 'points' in click_data:
-                                for point in click_data['points']:
-                                    if point['curveNumber'] == 1:  # Heatmap is the second trace (index 1)
-                                        clicked_time = point['y']
-                                        if min_time <= clicked_time <= max_time:
-                                            st.session_state.selected_time = clicked_time
-                                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error processing click: {e}")
+                # Handle click events using Streamlit's event system
+                # We'll use a different approach - let's add a callback mechanism
+                if st.session_state.get('ricker_plot_clicked', False):
+                    st.session_state.selected_time = st.session_state.get('ricker_clicked_time', st.session_state.selected_time)
+                    st.session_state.ricker_plot_clicked = False
+                    st.rerun()
                 
                 # 2. Second Plot: ISA Frequency Spectrum (synchronized with above plots)
                 st.subheader("2. ISA Frequency Spectrum (Ricker Wavelet)")
@@ -1359,19 +1346,10 @@ def main():
                 isa_plot_click = st.plotly_chart(isa_fig, use_container_width=True, key="ricker_isa_plot")
                 
                 # Handle click events on the ISA plot
-                if isa_plot_click and hasattr(isa_plot_click, 'point_numbers') and isa_plot_click.point_numbers:
-                    try:
-                        # Get the click data from the event
-                        click_data = st.session_state.get('ricker_isa_click_data', None)
-                        if click_data and 'points' in click_data:
-                            for point in click_data['points']:
-                                if point['curveNumber'] == 0:  # Heatmap is the first trace
-                                    clicked_time = point['y']
-                                    if min_time <= clicked_time <= max_time:
-                                        st.session_state.selected_time = clicked_time
-                                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error processing ISA click: {e}")
+                if st.session_state.get('ricker_isa_plot_clicked', False):
+                    st.session_state.selected_time = st.session_state.get('ricker_isa_clicked_time', st.session_state.selected_time)
+                    st.session_state.ricker_isa_plot_clicked = False
+                    st.rerun()
                 
                 # 3. Third Plot: Frequency Spectrum Details
                 st.subheader("3. Frequency Spectrum Details (Ricker Wavelet)")
@@ -1504,25 +1482,11 @@ def main():
                 # Display the plot and handle click events
                 plot_click = st.plotly_chart(fig, use_container_width=True, key="morlet_main_plot")
                 
-                # Handle click events on the main plot
-                if plot_click and hasattr(plot_click, 'point_numbers') and plot_click.point_numbers:
-                    # Get the clicked point data
-                    clicked_point = plot_click.point_numbers[0]
-                    if clicked_point is not None:
-                        # Extract time from clicked point (y-coordinate)
-                        # Since the heatmap is in the second subplot (col=2), we need to handle the click properly
-                        try:
-                            # Get the click data from the event
-                            click_data = st.session_state.get('morlet_click_data', None)
-                            if click_data and 'points' in click_data:
-                                for point in click_data['points']:
-                                    if point['curveNumber'] == 1:  # Heatmap is the second trace (index 1)
-                                        clicked_time = point['y']
-                                        if min_time <= clicked_time <= max_time:
-                                            st.session_state.selected_time = clicked_time
-                                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error processing click: {e}")
+                # Handle click events using Streamlit's event system
+                if st.session_state.get('morlet_plot_clicked', False):
+                    st.session_state.selected_time = st.session_state.get('morlet_clicked_time', st.session_state.selected_time)
+                    st.session_state.morlet_plot_clicked = False
+                    st.rerun()
                 
                 # 2. Second Plot: ISA Frequency Spectrum (synchronized with above plots)
                 st.subheader("2. ISA Frequency Spectrum (Morlet Wavelet)")
@@ -1550,19 +1514,10 @@ def main():
                 isa_plot_click = st.plotly_chart(isa_fig, use_container_width=True, key="morlet_isa_plot")
                 
                 # Handle click events on the ISA plot
-                if isa_plot_click and hasattr(isa_plot_click, 'point_numbers') and isa_plot_click.point_numbers:
-                    try:
-                        # Get the click data from the event
-                        click_data = st.session_state.get('morlet_isa_click_data', None)
-                        if click_data and 'points' in click_data:
-                            for point in click_data['points']:
-                                if point['curveNumber'] == 0:  # Heatmap is the first trace
-                                    clicked_time = point['y']
-                                    if min_time <= clicked_time <= max_time:
-                                        st.session_state.selected_time = clicked_time
-                                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error processing ISA click: {e}")
+                if st.session_state.get('morlet_isa_plot_clicked', False):
+                    st.session_state.selected_time = st.session_state.get('morlet_isa_clicked_time', st.session_state.selected_time)
+                    st.session_state.morlet_isa_plot_clicked = False
+                    st.rerun()
                 
                 # 3. Third Plot: Frequency Spectrum Details
                 st.subheader("3. Frequency Spectrum Details (Morlet Wavelet)")
