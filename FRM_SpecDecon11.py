@@ -11,6 +11,9 @@ import torch.nn.functional as F
 from scipy.ndimage import gaussian_filter
 from scipy.interpolate import interp1d
 
+# Add this import for click events
+from streamlit_plotly_events import plotly_events
+
 class CastagnaFrequencyAnalysis:
     def __init__(self):
         self.sample_rate = 4.0  # ms
@@ -1305,20 +1308,51 @@ def main():
                     wavelet_type='ricker'
                 )
                 
-                # Add click event to the heatmap
-                fig.update_layout(
-                    clickmode='event+select'
+                # Create a separate heatmap for click events
+                heatmap_fig = go.Figure()
+                continuous_slice, frequencies_continuous = st.session_state.ricker_analyzer.create_continuous_frequency_slice(
+                    st.session_state.ricker_seismic_data,
+                    st.session_state.ricker_spectral_components,
+                    st.session_state.ricker_trace_index
                 )
                 
-                # Display the plot and handle click events using Streamlit's event system
-                plot_click = st.plotly_chart(fig, use_container_width=True, key="ricker_main_plot")
+                heatmap_fig.add_trace(
+                    go.Heatmap(
+                        z=continuous_slice,
+                        x=frequencies_continuous,
+                        y=time_axis,
+                        colorscale=selected_colormap,
+                        hovertemplate='<b>Frequency</b>: %{x:.1f} Hz<br><b>Time</b>: %{y:.1f} ms<br><b>Amplitude</b>: %{z:.3f}<extra></extra>',
+                        name='Frequency Slice'
+                    )
+                )
                 
-                # Handle click events using Streamlit's event system
-                # We'll use a different approach - let's add a callback mechanism
-                if st.session_state.get('ricker_plot_clicked', False):
-                    st.session_state.selected_time = st.session_state.get('ricker_clicked_time', st.session_state.selected_time)
-                    st.session_state.ricker_plot_clicked = False
-                    st.rerun()
+                heatmap_fig.update_layout(
+                    title='Click on this heatmap to select time',
+                    xaxis_title="Frequency (Hz)",
+                    yaxis_title="Time (ms)",
+                    yaxis=dict(autorange='reversed'),
+                    height=400,
+                    margin=dict(l=80, r=80, t=80, b=80),
+                    paper_bgcolor='white',
+                    plot_bgcolor='white'
+                )
+                
+                # Use plotly_events for click handling
+                st.markdown("**Click on the heatmap below to select analysis time:**")
+                selected_points = plotly_events(heatmap_fig, click_event=True, key="ricker_heatmap_click")
+                
+                # Handle click events
+                if selected_points:
+                    clicked_point = selected_points[0]
+                    clicked_time = clicked_point['y']
+                    if min_time <= clicked_time <= max_time:
+                        st.session_state.selected_time = clicked_time
+                        st.success(f"Time updated to: {clicked_time:.1f} ms")
+                        st.rerun()
+                
+                # Display the main interactive plot
+                st.plotly_chart(fig, use_container_width=True)
                 
                 # 2. Second Plot: ISA Frequency Spectrum (synchronized with above plots)
                 st.subheader("2. ISA Frequency Spectrum (Ricker Wavelet)")
@@ -1338,18 +1372,17 @@ def main():
                     wavelet_type='ricker'
                 )
                 
-                # Add click event to the ISA frequency spectrum heatmap
-                isa_fig.update_layout(
-                    clickmode='event+select'
-                )
+                # Add clickable heatmap for ISA plot too
+                st.markdown("**You can also click on the ISA Frequency Spectrum to select time:**")
+                isa_selected_points = plotly_events(isa_fig, click_event=True, key="ricker_isa_click")
                 
-                isa_plot_click = st.plotly_chart(isa_fig, use_container_width=True, key="ricker_isa_plot")
-                
-                # Handle click events on the ISA plot
-                if st.session_state.get('ricker_isa_plot_clicked', False):
-                    st.session_state.selected_time = st.session_state.get('ricker_isa_clicked_time', st.session_state.selected_time)
-                    st.session_state.ricker_isa_plot_clicked = False
-                    st.rerun()
+                if isa_selected_points:
+                    clicked_point = isa_selected_points[0]
+                    clicked_time = clicked_point['y']
+                    if min_time <= clicked_time <= max_time:
+                        st.session_state.selected_time = clicked_time
+                        st.success(f"Time updated to: {clicked_time:.1f} ms")
+                        st.rerun()
                 
                 # 3. Third Plot: Frequency Spectrum Details
                 st.subheader("3. Frequency Spectrum Details (Ricker Wavelet)")
@@ -1384,13 +1417,6 @@ def main():
                 )
                 
                 st.plotly_chart(common_freq_fig, use_container_width=True)
-                
-                # Get continuous slice for verification
-                continuous_slice, _ = st.session_state.ricker_analyzer.create_continuous_frequency_slice(
-                    st.session_state.ricker_seismic_data,
-                    st.session_state.ricker_spectral_components,
-                    st.session_state.ricker_trace_index
-                )
                 
                 # Display Ricker-specific results
                 display_analysis_results(st.session_state.ricker_analyzer, spectrum, frequencies, 
@@ -1474,19 +1500,51 @@ def main():
                     wavelet_type='morlet'
                 )
                 
-                # Add click event to the heatmap
-                fig.update_layout(
-                    clickmode='event+select'
+                # Create a separate heatmap for click events
+                heatmap_fig = go.Figure()
+                continuous_slice, frequencies_continuous = st.session_state.morlet_analyzer.create_continuous_frequency_slice(
+                    st.session_state.morlet_seismic_data,
+                    st.session_state.morlet_spectral_components,
+                    st.session_state.morlet_trace_index
                 )
                 
-                # Display the plot and handle click events
-                plot_click = st.plotly_chart(fig, use_container_width=True, key="morlet_main_plot")
+                heatmap_fig.add_trace(
+                    go.Heatmap(
+                        z=continuous_slice,
+                        x=frequencies_continuous,
+                        y=time_axis,
+                        colorscale=selected_colormap,
+                        hovertemplate='<b>Frequency</b>: %{x:.1f} Hz<br><b>Time</b>: %{y:.1f} ms<br><b>Amplitude</b>: %{z:.3f}<extra></extra>',
+                        name='Frequency Slice'
+                    )
+                )
                 
-                # Handle click events using Streamlit's event system
-                if st.session_state.get('morlet_plot_clicked', False):
-                    st.session_state.selected_time = st.session_state.get('morlet_clicked_time', st.session_state.selected_time)
-                    st.session_state.morlet_plot_clicked = False
-                    st.rerun()
+                heatmap_fig.update_layout(
+                    title='Click on this heatmap to select time',
+                    xaxis_title="Frequency (Hz)",
+                    yaxis_title="Time (ms)",
+                    yaxis=dict(autorange='reversed'),
+                    height=400,
+                    margin=dict(l=80, r=80, t=80, b=80),
+                    paper_bgcolor='white',
+                    plot_bgcolor='white'
+                )
+                
+                # Use plotly_events for click handling
+                st.markdown("**Click on the heatmap below to select analysis time:**")
+                selected_points = plotly_events(heatmap_fig, click_event=True, key="morlet_heatmap_click")
+                
+                # Handle click events
+                if selected_points:
+                    clicked_point = selected_points[0]
+                    clicked_time = clicked_point['y']
+                    if min_time <= clicked_time <= max_time:
+                        st.session_state.selected_time = clicked_time
+                        st.success(f"Time updated to: {clicked_time:.1f} ms")
+                        st.rerun()
+                
+                # Display the main interactive plot
+                st.plotly_chart(fig, use_container_width=True)
                 
                 # 2. Second Plot: ISA Frequency Spectrum (synchronized with above plots)
                 st.subheader("2. ISA Frequency Spectrum (Morlet Wavelet)")
@@ -1506,18 +1564,17 @@ def main():
                     wavelet_type='morlet'
                 )
                 
-                # Add click event to the ISA frequency spectrum heatmap
-                isa_fig.update_layout(
-                    clickmode='event+select'
-                )
+                # Add clickable heatmap for ISA plot too
+                st.markdown("**You can also click on the ISA Frequency Spectrum to select time:**")
+                isa_selected_points = plotly_events(isa_fig, click_event=True, key="morlet_isa_click")
                 
-                isa_plot_click = st.plotly_chart(isa_fig, use_container_width=True, key="morlet_isa_plot")
-                
-                # Handle click events on the ISA plot
-                if st.session_state.get('morlet_isa_plot_clicked', False):
-                    st.session_state.selected_time = st.session_state.get('morlet_isa_clicked_time', st.session_state.selected_time)
-                    st.session_state.morlet_isa_plot_clicked = False
-                    st.rerun()
+                if isa_selected_points:
+                    clicked_point = isa_selected_points[0]
+                    clicked_time = clicked_point['y']
+                    if min_time <= clicked_time <= max_time:
+                        st.session_state.selected_time = clicked_time
+                        st.success(f"Time updated to: {clicked_time:.1f} ms")
+                        st.rerun()
                 
                 # 3. Third Plot: Frequency Spectrum Details
                 st.subheader("3. Frequency Spectrum Details (Morlet Wavelet)")
@@ -1552,13 +1609,6 @@ def main():
                 )
                 
                 st.plotly_chart(common_freq_fig, use_container_width=True)
-                
-                # Get continuous slice for verification
-                continuous_slice, _ = st.session_state.morlet_analyzer.create_continuous_frequency_slice(
-                    st.session_state.morlet_seismic_data,
-                    st.session_state.morlet_spectral_components,
-                    st.session_state.morlet_trace_index
-                )
                 
                 # Display Morlet-specific results
                 display_analysis_results(st.session_state.morlet_analyzer, spectrum, frequencies, 
